@@ -1,7 +1,7 @@
 {
-  "versionCode": 9,
-  "versionName": "1.0.8",
+  "versionCode": 10,
+  "versionName": "1.0.9",
   "buildDate": "2026-10-18",
   "apkUrl": "https://github.com/Adriavc15/anfhly-tv-releases/releases/latest/download/Anfhly.Tv.apk",
-  "changelog": "- Solución definitiva a caídas de rendimiento y congelamientos al cambiar de calidad en el selector del reproductor\n- Incorporación de la opción 'Auto (Recomendado)' para alternar entre selección manual y adaptación automática fluida\n- Eliminación de restricciones de ventana fija rígida (tolerancia cero) que generaban microcortes en ExoPlayer\n- Cambio dinámico de resolución in-place y elástico sin destruir ni recargar el reproductor"
+  "changelog": "- Arranque automático directo en 4K (2160p) para televisores y dispositivos con soporte de hardware 4K\n- Selección inteligente de la máxima calidad nativa disponible sin requerir ajuste manual previo\n- Búsqueda en cascada de pistas de video (4K -> 2K -> 1080p) para garantizar la mayor resolución posible en cada contenido"
 }

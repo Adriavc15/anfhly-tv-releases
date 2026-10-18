@@ -334,8 +334,20 @@ class PlayerActivity : AppCompatActivity() {
                     preferredAudioLanguage = userSettings.defaultAudioLanguage
                     preferredSubtitleLanguage = userSettings.defaultSubtitleLanguage
                     subtitlesEnabled = userSettings.subtitlesEnabled
-                    preferredQuality = if (userSettings.autoQuality) "auto" else userSettings.defaultVideoQuality
-                    Log.d(tag, "Loaded settings: audio=$preferredAudioLanguage, subtitle=$preferredSubtitleLanguage, quality=$preferredQuality, subtitlesEnabled=$subtitlesEnabled")
+                    val hwMax = deviceCapabilities.getHardwareMaxVideoSize()
+                    val isHardware4k = hwMax.second >= 2160
+                    val isHardware2k = hwMax.second >= 1440
+                    
+                    preferredQuality = if (userSettings.autoQuality) {
+                        if (isHardware4k) "4k" else if (isHardware2k) "2k" else "auto"
+                    } else if (userSettings.defaultVideoQuality == "1080p" && isHardware4k) {
+                        "4k"
+                    } else if (userSettings.defaultVideoQuality == "1080p" && isHardware2k) {
+                        "2k"
+                    } else {
+                        userSettings.defaultVideoQuality
+                    }
+                    Log.d(tag, "Loaded settings: audio=$preferredAudioLanguage, subtitle=$preferredSubtitleLanguage, quality=$preferredQuality (hwMax=${hwMax.first}x${hwMax.second}), subtitlesEnabled=$subtitlesEnabled")
                     
                     // Actualizar parámetros del TrackSelector con las preferencias del usuario
                     updatePlayerTrackSelectorParameters()
@@ -1166,20 +1178,28 @@ class PlayerActivity : AppCompatActivity() {
                             val targetQuality = preferredQuality
                             Log.d(tag, "Looking for preferred quality: $targetQuality")
                             
-                            // Buscar calidad que coincida con la preferencia
-                            val matchingQuality = manualQualities.find { quality ->
-                                val label = quality.label.lowercase()
-                                val matches = when (targetQuality) {
-                                    "4k", "2160p" -> label.contains("4k") || label.contains("2160")
-                                    "2k", "1440p" -> label.contains("2k") || label.contains("1440") || label.contains("qhd")
-                                    "1080p" -> label.contains("1080") || label.contains("fhd") || label.contains("full")
-                                    "720p" -> label.contains("720") || label.contains("hd")
-                                    "480p" -> label.contains("480") || label.contains("sd")
-                                    "360p" -> label.contains("360") || label.contains("low")
-                                    else -> false
+                            // Búsqueda en cascada: intentar calidad objetivo y si no existe, la más alta siguiente
+                            val candidateTokens = when (targetQuality) {
+                                "4k", "2160p" -> listOf(listOf("4k", "2160", "uhd"), listOf("2k", "1440", "qhd"), listOf("1080", "fhd", "full"), listOf("720", "hd"))
+                                "2k", "1440p" -> listOf(listOf("2k", "1440", "qhd"), listOf("1080", "fhd", "full"), listOf("720", "hd"))
+                                "1080p"       -> listOf(listOf("1080", "fhd", "full"), listOf("720", "hd"))
+                                "720p"        -> listOf(listOf("720", "hd"), listOf("480", "sd"))
+                                else          -> listOf(listOf(targetQuality))
+                            }
+                            
+                            var matchingQuality: com.anfhly.streaming.data.model.Video.Quality? = null
+                            for (groupTokens in candidateTokens) {
+                                val match = manualQualities.find { q ->
+                                    val l = q.label.lowercase()
+                                    groupTokens.any { token -> l.contains(token) }
                                 }
-                                Log.d(tag, "Checking quality label: '$label' against target: '$targetQuality' -> matches=$matches")
-                                matches
+                                if (match != null) {
+                                    matchingQuality = match
+                                    break
+                                }
+                            }
+                            if (matchingQuality == null) {
+                                matchingQuality = manualQualities.firstOrNull { it.selected } ?: manualQualities.firstOrNull()
                             }
                             
                             if (matchingQuality != null) {
@@ -1188,7 +1208,7 @@ class PlayerActivity : AppCompatActivity() {
                                 manualQualities = manualQualities.map { 
                                     it.copy(selected = it.url == selectedUrl) 
                                 }
-                                Log.d(tag, "SUCCESS: Applied preferred quality URL: ${selectedUrl.take(50)}... (label: ${matchingQuality.label})")
+                                Log.d(tag, "SUCCESS: Applied preferred/best quality URL: ${selectedUrl.take(50)}... (label: ${matchingQuality.label})")
                             } else {
                                 Log.d(tag, "FAILED: Preferred quality $targetQuality not found in available qualities, using default")
                             }
@@ -2310,28 +2330,36 @@ class PlayerActivity : AppCompatActivity() {
                         }
                     }
                     
-                    for (group in videoGroups) {
+                    // Recopilar todos los tracks candidatos válidos
+                    val candidates = mutableListOf<Triple<Int, Int, androidx.media3.common.Format>>()
+                    videoGroups.forEachIndexed { gIdx, group ->
                         for (i in 0 until group.length) {
                             val format = group.getTrackFormat(i)
-                            val maxDim = maxOf(format.width, format.height)
-                            val inRange = maxDim in (targetMaxDim - 200)..(targetMaxDim + 200)
-                            Log.d(tag, "QUALITY: Checking maxDim=$maxDim vs target=$targetMaxDim, inRange=$inRange")
-                            if (inRange) {
-                                videoOverride = TrackSelectionOverride(group.mediaTrackGroup, listOf(i))
-                                Log.d(tag, "QUALITY: Found matching track with maxDim=$maxDim")
-                                break
+                            if (format.width > 0 || format.height > 0) {
+                                candidates.add(Triple(gIdx, i, format))
                             }
                         }
-                        if (videoOverride != null) break
                     }
-                    
-                    if (videoOverride != null) {
+
+                    // Techo máximo efectivo según capacidades reales del hardware
+                    val hwMax = deviceCapabilities.getHardwareMaxVideoSize()
+                    val effectiveCeiling = minOf(targetMaxDim, maxOf(hwMax.first, hwMax.second))
+
+                    // Seleccionar la mejor pista que no supere el techo del hardware (prioriza 4K si existe)
+                    val bestMatch = candidates
+                        .filter { maxOf(it.third.width, it.third.height) <= (effectiveCeiling + 200) }
+                        .maxByOrNull { maxOf(it.third.width, it.third.height) }
+
+                    if (bestMatch != null) {
+                        val (bestGroupIdx, bestTrackIdx, bestFormat) = bestMatch
+                        videoOverride = TrackSelectionOverride(videoGroups[bestGroupIdx].mediaTrackGroup, listOf(bestTrackIdx))
                         trackParamsBuilder = trackParamsBuilder
                             .clearVideoSizeConstraints()
+                            .setMaxVideoSize(bestFormat.width, bestFormat.height)
                             .setOverrideForType(videoOverride)
-                        Log.d(tag, "QUALITY SUCCESS: Applied preferred quality: $preferredQuality")
+                        Log.d(tag, "QUALITY SUCCESS: Applied best track ${bestFormat.width}x${bestFormat.height} (target: $preferredQuality, hwMax: ${hwMax.first}x${hwMax.second})")
                     } else {
-                        Log.d(tag, "QUALITY FAILED: Preferred quality not found, using auto")
+                        Log.d(tag, "QUALITY FAILED: No compatible track found for $preferredQuality, using auto")
                     }
                 } else {
                     Log.d(tag, "QUALITY: No video groups available (probably manual quality)")
