@@ -1,0 +1,7 @@
+{
+  "versionCode": 2,
+  "versionName": "1.0.1",
+  "buildDate": "2026-10-18",
+  "apkUrl": "https://github.com/Adriavc15/anfhly-tv-releases/releases/latest/download/Anfhly.Tv.apk",
+  "changelog": "- CorrecciÃ³n integral de navegaciÃ³n con control remoto y D-pad en HomeScreen\n- EliminaciÃ³n del texto 'Ajustes' en ConfigScreen\n- TransiciÃ³n suave de foco entre pestaÃ±as y filas de contenido"
+}
