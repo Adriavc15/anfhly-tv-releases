@@ -1,7 +1,7 @@
 {
-  "versionCode": 13,
-  "versionName": "1.1.2",
+  "versionCode": 14,
+  "versionName": "1.1.3",
   "buildDate": "2026-10-18",
   "apkUrl": "https://github.com/Adriavc15/anfhly-tv-releases/releases/latest/download/Anfhly.Tv.apk",
-  "changelog": "- Diseño mejorado de cards Continuar viendo sin bordes, estilo consistente con resto de la app\n- Imágenes de plataformas de streaming actualizadas a versiones de mayor calidad\n- Iconos de plataformas más grandes (140x90dp) para mejor integración visual\n- Barra de progreso blanca en Continuar viendo para mejor consistencia\n- Navegación mejorada entre plataformas y contenido con scroll suave\n- Corrección de índices de scroll para incluir sección Continuar viendo\n- Eliminación de efecto de rebote en navegación con animaciones fluidas"
+  "changelog": "- Correccion de reproduccion lenta en OK.ru en todas las calidades\n- Eliminados limites artificiales de bitrate (2.5 Mbps) y resolucion (720p) para OK.ru\n- Timeouts de conexion optimizados (15s conexion, 30s lectura) para carga mas rapida\n- Desactivado buffering extra que causaba congelamientos\n- Eliminadas conversiones de codec para OK.ru (soluciona frame por frame y perdida de colores)\n- Calidades manuales de OK.ru ahora funcionan sin restricciones\n- Gama de colores completa preservada en videos de OK.ru"
 }
