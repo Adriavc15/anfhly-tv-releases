@@ -2,6 +2,9 @@ package com.anfhly.streaming.ui.screens
 
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
+import android.content.pm.PackageManager
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -13,7 +16,9 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,6 +47,7 @@ fun ConfigScreen(
     var showPlayerModal by remember { mutableStateOf(false) }
     var showInterfaceModal by remember { mutableStateOf(false) }
     val currentUiStyle = remember { mutableStateOf(com.anfhly.streaming.utils.UserPreferences.getUiStyle(context)) }
+    val coroutineScope = rememberCoroutineScope()
 
     BackHandler { onBack() }
 
@@ -279,6 +285,78 @@ fun ConfigScreen(
                             Spacer(modifier = Modifier.width(10.dp))
                             Text(
                                 text = "Info",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Normal,
+                                color = Color(0xFF333333),
+                                modifier = Modifier.weight(1f)
+                            )
+                            Icon(
+                                imageVector = Icons.Default.KeyboardArrowRight,
+                                contentDescription = null,
+                                tint = Color(0xFF888888),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    var updateFocused by remember { mutableStateOf(false) }
+                    Surface(
+                        onClick = {
+                            coroutineScope.launch {
+                                Toast.makeText(context, "Buscando actualizaciones en GitHub...", Toast.LENGTH_SHORT).show()
+                                val updateManager = com.anfhly.streaming.updater.UpdateManager(context)
+                                val currentVersionCode = try {
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                        context.packageManager.getPackageInfo(context.packageName, PackageManager.PackageInfoFlags.of(0)).longVersionCode.toInt()
+                                    } else {
+                                        @Suppress("DEPRECATION")
+                                        context.packageManager.getPackageInfo(context.packageName, 0).versionCode
+                                    }
+                                } catch (e: Exception) { 1 }
+
+                                val currentVersionName = try {
+                                    context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "1.0.0"
+                                } catch (e: Exception) { "1.0.0" }
+
+                                val updateInfo = updateManager.checkForUpdate(currentVersionCode, currentVersionName)
+                                if (updateInfo != null) {
+                                    updateManager.showUpdateDialog(
+                                        updateInfo = updateInfo,
+                                        onUpdate = {
+                                            updateManager.downloadAndInstall(updateInfo, coroutineScope)
+                                        }
+                                    )
+                                } else {
+                                    Toast.makeText(context, "Ya tienes la última versión instalada (v$currentVersionName)", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        },
+                        colors = ClickableSurfaceDefaults.colors(
+                            containerColor = Color.White.copy(alpha = 0.7f),
+                            focusedContainerColor = Color.White
+                        ),
+                        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.02f),
+                        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(50.dp)),
+                        modifier = Modifier
+                            .width(450.dp)
+                            .height(42.dp)
+                            .onFocusChanged { updateFocused = it.isFocused }
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = null,
+                                tint = Color(0xFF333333),
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = "Buscar actualizaciones",
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Normal,
                                 color = Color(0xFF333333),

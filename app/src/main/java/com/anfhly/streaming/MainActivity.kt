@@ -3,7 +3,9 @@ package com.anfhly.streaming
 import android.content.Intent
 import android.util.Log
 import android.os.Bundle
+import android.os.Build
 import android.os.Process
+import android.content.pm.PackageManager
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.widget.Toast
@@ -97,6 +99,37 @@ class MainActivity : ComponentActivity() {
                 com.anfhly.streaming.recommendations.TvRecommendationsManager.updateRecommendations(this@MainActivity)
             } catch (e: Exception) {
                 Log.e("MainActivity", "Error updating recommendations", e)
+            }
+        }
+
+        // Consultar actualizaciones en GitHub en segundo plano
+        lifecycleScope.launch {
+            try {
+                val updateManager = UpdateManager(this@MainActivity)
+                val currentVersionCode = try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        packageManager.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(0)).longVersionCode.toInt()
+                    } else {
+                        @Suppress("DEPRECATION")
+                        packageManager.getPackageInfo(packageName, 0).versionCode
+                    }
+                } catch (e: Exception) { 1 }
+
+                val currentVersionName = try {
+                    packageManager.getPackageInfo(packageName, 0).versionName ?: "1.0.0"
+                } catch (e: Exception) { "1.0.0" }
+
+                val updateInfo = updateManager.checkForUpdate(currentVersionCode, currentVersionName)
+                if (updateInfo != null) {
+                    updateManager.showUpdateDialog(
+                        updateInfo = updateInfo,
+                        onUpdate = {
+                            updateManager.downloadAndInstall(updateInfo, lifecycleScope)
+                        }
+                    )
+                }
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Error comprobando actualizaciones en GitHub: ${e.message}")
             }
         }
         

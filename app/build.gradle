@@ -49,6 +49,15 @@ android {
         kotlinCompilerExtensionVersion = "1.5.5"
     }
     
+    // Custom APK output name
+    applicationVariants.all { variant ->
+        variant.outputs.all {
+            if (variant.buildType.name == "debug") {
+                outputFileName = "Anfhly Tv.apk"
+            }
+        }
+    }
+
     // Skip AAR metadata check issues
     tasks.whenTaskAdded { task ->
         if (task.name.contains("checkDebugAarMetadata")) {

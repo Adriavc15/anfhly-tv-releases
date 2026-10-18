@@ -1,7 +1,7 @@
 {
   "versionCode": 1,
   "versionName": "1.0.0",
-  "buildDate": "2026-04-08-1630",
-  "apkUrl": "https://drive.google.com/uc?export=download&id=1Tl91nN1fqrvrCaQKR29DnKd9jBK0pT5d",
-  "changelog": "- Primera versión"
+  "buildDate": "2026-10-18",
+  "apkUrl": "https://github.com/Adriavc15/ANFHLYTV/releases/latest/download/Anfhly%20Tv.apk",
+  "changelog": "- Soporte fluido en 2K y 4K con decodificación acelerada por hardware\n- Corrección de navegación D-Pad en controles y barra de progreso\n- Eliminación del botón PiP y botón Fondo Decorativo\n- Sistema de actualizaciones directas desde GitHub"
 }

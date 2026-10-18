@@ -1,197 +1,366 @@
 package com.anfhly.streaming.updater
 
-import android.app.DownloadManager
+import android.app.AlertDialog
 import android.app.ProgressDialog
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.util.Log
+import android.widget.Toast
 import androidx.core.content.FileProvider
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
 import java.io.File
+import java.util.concurrent.TimeUnit
 
 class UpdateManager(private val context: Context) {
 
-    private val TAG = "UpdateManager"
-    // URL del archivo update.json en Google Drive
-    private val UPDATE_URL = "https://drive.google.com/uc?export=download&id=1cIgIxd0tyQI9Efy8Cht84_nTxDff65Lr"
-    // El APK URL se obtiene dinámicamente desde el update.json
+    companion object {
+        private const val TAG = "UpdateManager"
+        private const val GITHUB_OWNER = "Adriavc15"
+        private const val GITHUB_REPO = "ANFHLYTV"
 
-    private var downloadId: Long = -1
-    private var progressDialog: ProgressDialog? = null
+        // URL directa al manifiesto de actualización en el repositorio GitHub
+        private const val GITHUB_RAW_MANIFEST_URL =
+            "https://raw.githubusercontent.com/$GITHUB_OWNER/$GITHUB_REPO/main/app/update.json"
+
+        // URL a la API de GitHub Releases para última versión
+        private const val GITHUB_RELEASES_API_URL =
+            "https://api.github.com/repos/$GITHUB_OWNER/$GITHUB_REPO/releases/latest"
+
+        // URL por defecto del APK publicado en GitHub Releases
+        private const val DEFAULT_RELEASE_APK_URL =
+            "https://github.com/$GITHUB_OWNER/$GITHUB_REPO/releases/latest/download/Anfhly%20Tv.apk"
+    }
 
     data class UpdateInfo(
         val versionCode: Int,
         val versionName: String,
         val apkUrl: String,
         val changelog: String,
-        val buildDate: String, // Fecha de build para detectar cambios sin cambiar versionCode
-        val fileHash: String? = null // Opcional: hash del archivo para verificación
+        val buildDate: String = "",
+        val fileHash: String? = null
     )
 
-    suspend fun checkForUpdate(currentVersionCode: Int): UpdateInfo? = withContext(Dispatchers.IO) {
-        try {
-            Log.d(TAG, "Checking for updates... Current version: $currentVersionCode")
+    /**
+     * Consulta actualizaciones desde GitHub (manifiesto raw o GitHub Releases).
+     */
+    suspend fun checkForUpdate(
+        currentVersionCode: Int,
+        currentVersionName: String = ""
+    ): UpdateInfo? = withContext(Dispatchers.IO) {
+        val client = OkHttpClient.Builder()
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(20, TimeUnit.SECONDS)
+            .followRedirects(true)
+            .build()
 
-            val client = OkHttpClient()
+        Log.d(TAG, "Buscando actualizaciones en GitHub... Versión actual: $currentVersionName (código: $currentVersionCode)")
+
+        // 1. Intentar obtener el manifiesto raw desde GitHub
+        var update = fetchFromManifest(client, currentVersionCode, currentVersionName)
+
+        // 2. Si no hay manifiesto o no arrojó actualización, verificar con la API de Releases de GitHub
+        if (update == null) {
+            update = fetchFromGithubReleases(client, currentVersionCode, currentVersionName)
+        }
+
+        update
+    }
+
+    private fun fetchFromManifest(
+        client: OkHttpClient,
+        currentVersionCode: Int,
+        currentVersionName: String
+    ): UpdateInfo? {
+        try {
             val request = Request.Builder()
-                .url(UPDATE_URL)
+                .url(GITHUB_RAW_MANIFEST_URL)
+                .header("User-Agent", "AnfhlyTV-App")
+                .header("Cache-Control", "no-cache")
                 .build()
 
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
-                    Log.e(TAG, "Failed to check update: HTTP ${response.code}")
-                    return@withContext null
+                    Log.d(TAG, "Manifiesto GitHub no disponible (HTTP ${response.code})")
+                    return null
                 }
 
-                val jsonString = response.body?.string() ?: return@withContext null
+                val jsonString = response.body?.string() ?: return null
                 val json = JSONObject(jsonString)
 
-                val versionCode = json.getInt("versionCode")
-                val versionName = json.getString("versionName")
-                val apkUrl = json.getString("apkUrl")
-                val changelog = json.optString("changelog", "")
+                val remoteVersionCode = json.optInt("versionCode", 0)
+                val remoteVersionName = json.optString("versionName", "")
+                var apkUrl = json.optString("apkUrl", "")
+                val changelog = json.optString("changelog", "Mejoras y correcciones generales")
                 val buildDate = json.optString("buildDate", "")
-                val fileHash = json.optString("fileHash", null)
+                val fileHash = if (json.has("fileHash")) json.getString("fileHash") else null
 
-                Log.d(TAG, "Remote version: $versionCode ($versionName), buildDate: $buildDate")
+                if (apkUrl.isBlank()) {
+                    apkUrl = DEFAULT_RELEASE_APK_URL
+                }
 
-                // Verificar siempre que haya una actualización disponible
-                // Incluso con el mismo versionCode, si el buildDate es diferente, hay nueva versión
                 val prefs = context.getSharedPreferences("updates", Context.MODE_PRIVATE)
                 val lastBuildDate = prefs.getString("last_build_date", "")
 
-                // Siempre detectar como nueva versión si:
-                // 1. versionCode es mayor, O
-                // 2. buildDate es diferente (incluso con mismo versionCode)
-                val isNewVersion = when {
-                    versionCode > currentVersionCode -> {
-                        Log.d(TAG, "New versionCode detected: $versionCode > $currentVersionCode")
-                        true
-                    }
-                    buildDate.isNotEmpty() && buildDate != lastBuildDate -> {
-                        Log.d(TAG, "New buildDate detected: $buildDate != $lastBuildDate")
-                        true
-                    }
-                    else -> {
-                        Log.d(TAG, "No update - versionCode: $versionCode, buildDate: $buildDate, last: $lastBuildDate")
-                        false
-                    }
+                val isNewer = when {
+                    remoteVersionCode > currentVersionCode -> true
+                    remoteVersionName.isNotEmpty() && currentVersionName.isNotEmpty() &&
+                            compareSemVer(remoteVersionName, currentVersionName) > 0 -> true
+                    buildDate.isNotEmpty() && buildDate != lastBuildDate && remoteVersionCode == currentVersionCode -> true
+                    else -> false
                 }
 
-                if (isNewVersion) {
-                    Log.d(TAG, "Update available! (buildDate: $buildDate vs last: $lastBuildDate)")
-                    return@withContext UpdateInfo(versionCode, versionName, apkUrl, changelog, buildDate, fileHash)
-                } else {
-                    Log.d(TAG, "No update needed")
-                    return@withContext null
+                if (isNewer) {
+                    Log.d(TAG, "Nueva versión encontrada en manifiesto GitHub: $remoteVersionName ($remoteVersionCode)")
+                    return UpdateInfo(remoteVersionCode, remoteVersionName, apkUrl, changelog, buildDate, fileHash)
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error checking for update: ${e.message}", e)
-            return@withContext null
+            Log.e(TAG, "Error obteniendo manifiesto de GitHub: ${e.message}")
         }
+        return null
     }
 
-    fun downloadAndInstall(updateInfo: UpdateInfo) {
-        Log.d(TAG, "Starting download from: ${updateInfo.apkUrl}")
+    private fun fetchFromGithubReleases(
+        client: OkHttpClient,
+        currentVersionCode: Int,
+        currentVersionName: String
+    ): UpdateInfo? {
+        try {
+            val request = Request.Builder()
+                .url(GITHUB_RELEASES_API_URL)
+                .header("User-Agent", "AnfhlyTV-App")
+                .header("Accept", "application/vnd.github.v3+json")
+                .build()
 
-        // Mostrar progreso
-        progressDialog = ProgressDialog(context).apply {
-            setMessage("Descargando actualización...")
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    Log.d(TAG, "GitHub Releases API retornó HTTP ${response.code}")
+                    return null
+                }
+
+                val jsonString = response.body?.string() ?: return null
+                val json = JSONObject(jsonString)
+
+                val tagName = json.optString("tag_name", "").trim()
+                val cleanTag = tagName.removePrefix("v").removePrefix("V")
+                val changelog = json.optString("body", "Nueva versión disponible en GitHub")
+                val publishedAt = json.optString("published_at", "")
+
+                // Buscar el asset APK
+                var apkUrl = ""
+                val assets = json.optJSONArray("assets")
+                if (assets != null) {
+                    for (i in 0 until assets.length()) {
+                        val asset = assets.getJSONObject(i)
+                        val name = asset.optString("name", "")
+                        if (name.endsWith(".apk", ignoreCase = true)) {
+                            apkUrl = asset.optString("browser_download_url", "")
+                            if (name.contains("Anfhly", ignoreCase = true)) {
+                                break // Priorizar Anfhly Tv.apk
+                            }
+                        }
+                    }
+                }
+
+                if (apkUrl.isBlank()) {
+                    apkUrl = DEFAULT_RELEASE_APK_URL
+                }
+
+                val isNewer = if (cleanTag.isNotEmpty() && currentVersionName.isNotEmpty()) {
+                    compareSemVer(cleanTag, currentVersionName) > 0
+                } else false
+
+                if (isNewer) {
+                    Log.d(TAG, "Nueva versión encontrada en GitHub Releases: $cleanTag")
+                    return UpdateInfo(
+                        versionCode = currentVersionCode + 1,
+                        versionName = cleanTag,
+                        apkUrl = apkUrl,
+                        changelog = changelog,
+                        buildDate = publishedAt
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error consultando GitHub Releases: ${e.message}")
+        }
+        return null
+    }
+
+    /**
+     * Descarga el APK con indicador de progreso y lanza el instalador.
+     */
+    fun downloadAndInstall(
+        updateInfo: UpdateInfo,
+        scope: CoroutineScope,
+        onProgress: ((Int) -> Unit)? = null,
+        onError: ((String) -> Unit)? = null
+    ) {
+        Log.d(TAG, "Iniciando descarga de actualización desde: ${updateInfo.apkUrl}")
+
+        val progressDialog = ProgressDialog(context).apply {
+            setTitle("Descargando actualización")
+            setMessage("Descargando Anfhly TV v${updateInfo.versionName}...")
             setProgressStyle(ProgressDialog.STYLE_HORIZONTAL)
             isIndeterminate = false
+            max = 100
             setCancelable(false)
             show()
         }
 
-        // Crear directorio de descargas si no existe
-        val downloadDir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "Updates")
-        if (!downloadDir.exists()) {
-            downloadDir.mkdirs()
-        }
+        scope.launch(Dispatchers.IO) {
+            try {
+                // Directorio seguro para descarga de APK
+                val downloadDir = File(
+                    context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.cacheDir,
+                    "Updates"
+                )
+                if (!downloadDir.exists()) downloadDir.mkdirs()
 
-        // Nombre del archivo
-        val fileName = "app-update-v${updateInfo.versionName}.apk"
-        val destinationFile = File(downloadDir, fileName)
+                val destinationFile = File(downloadDir, "Anfhly Tv.apk")
+                if (destinationFile.exists()) destinationFile.delete()
 
-        // Eliminar archivo anterior si existe
-        if (destinationFile.exists()) {
-            destinationFile.delete()
-        }
+                val client = OkHttpClient.Builder()
+                    .followRedirects(true)
+                    .followSslRedirects(true)
+                    .connectTimeout(30, TimeUnit.SECONDS)
+                    .readTimeout(90, TimeUnit.SECONDS)
+                    .build()
 
-        // Configurar descarga con DownloadManager
-        val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-        val request = DownloadManager.Request(Uri.parse(updateInfo.apkUrl)).apply {
-            setTitle("Actualización ${updateInfo.versionName}")
-            setDescription("Descargando APK...")
-            setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-            setDestinationUri(Uri.fromFile(destinationFile))
-            setAllowedOverMetered(true)
-            setAllowedOverRoaming(true)
-        }
+                val request = Request.Builder()
+                    .url(updateInfo.apkUrl)
+                    .header("User-Agent", "AnfhlyTV-App")
+                    .build()
 
-        // Registrar receiver para cuando termine la descarga
-        val onComplete = object : BroadcastReceiver() {
-            override fun onReceive(context: Context?, intent: Intent?) {
-                val id = intent?.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1) ?: return
-                if (id == downloadId) {
-                    Log.d(TAG, "Download completed: $destinationFile")
-                    progressDialog?.dismiss()
-                    context?.unregisterReceiver(this)
-                    installApk(destinationFile)
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        throw java.io.IOException("Error en el servidor: HTTP ${response.code}")
+                    }
+
+                    val body = response.body ?: throw java.io.IOException("Respuesta vacía del servidor")
+                    val contentLength = body.contentLength()
+                    val inputStream = body.byteStream()
+                    val outputStream = destinationFile.outputStream()
+
+                    val buffer = ByteArray(8 * 1024)
+                    var bytesRead: Int
+                    var totalBytesRead: Long = 0
+
+                    inputStream.use { input ->
+                        outputStream.use { output ->
+                            while (input.read(buffer).also { bytesRead = it } != -1) {
+                                output.write(buffer, 0, bytesRead)
+                                totalBytesRead += bytesRead
+                                if (contentLength > 0) {
+                                    val percent = ((totalBytesRead * 100) / contentLength).toInt()
+                                    withContext(Dispatchers.Main) {
+                                        progressDialog.progress = percent
+                                        onProgress?.invoke(percent)
+                                    }
+                                }
+                            }
+                            output.flush()
+                        }
+                    }
+
+                    withContext(Dispatchers.Main) {
+                        progressDialog.dismiss()
+                        if (updateInfo.buildDate.isNotEmpty()) {
+                            markUpdateInstalled(updateInfo.buildDate)
+                        }
+                        installApk(destinationFile)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error descargando APK: ${e.message}", e)
+                withContext(Dispatchers.Main) {
+                    progressDialog.dismiss()
+                    onError?.invoke(e.message ?: "Error desconocido")
+                    Toast.makeText(
+                        context,
+                        "Error al descargar la actualización: ${e.message}",
+                        Toast.LENGTH_LONG
+                    ).show()
                 }
             }
         }
-
-        context.registerReceiver(onComplete, IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE))
-        downloadId = downloadManager.enqueue(request)
     }
 
-    private fun installApk(apkFile: File) {
-        Log.d(TAG, "Installing APK: ${apkFile.absolutePath}")
+    /**
+     * Lanza el intent del sistema para instalar el archivo APK descargado.
+     */
+    fun installApk(apkFile: File) {
+        try {
+            Log.d(TAG, "Instalando APK: ${apkFile.absolutePath}")
 
-        val intent = Intent(Intent.ACTION_VIEW).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
 
-            val apkUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                // Android 7.0+ requiere FileProvider
-                FileProvider.getUriForFile(
-                    context,
-                    "${context.packageName}.fileprovider",
-                    apkFile
-                )
-            } else {
-                Uri.fromFile(apkFile)
+                val apkUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    FileProvider.getUriForFile(
+                        context,
+                        "${context.packageName}.fileprovider",
+                        apkFile
+                    )
+                } else {
+                    Uri.fromFile(apkFile)
+                }
+
+                setDataAndType(apkUri, "application/vnd.android.package-archive")
             }
 
-            setDataAndType(apkUri, "application/vnd.android.package-archive")
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error iniciando instalador de APK: ${e.message}", e)
+            Toast.makeText(
+                context,
+                "No se pudo iniciar el instalador: ${e.message}",
+                Toast.LENGTH_LONG
+            ).show()
         }
-
-        context.startActivity(intent)
     }
 
-    fun showUpdateDialog(updateInfo: UpdateInfo, onUpdate: () -> Unit, onCancel: () -> Unit) {
-        android.app.AlertDialog.Builder(context)
-            .setTitle("Nueva versión disponible: ${updateInfo.versionName}")
-            .setMessage("${updateInfo.changelog}\n\n¿Deseas actualizar ahora?")
-            .setPositiveButton("Actualizar") { _, _ -> onUpdate() }
+    /**
+     * Muestra diálogo amigable para Android TV informando la nueva versión.
+     */
+    fun showUpdateDialog(
+        updateInfo: UpdateInfo,
+        onUpdate: () -> Unit,
+        onCancel: () -> Unit = {}
+    ) {
+        AlertDialog.Builder(context)
+            .setTitle("Nueva actualización disponible (v${updateInfo.versionName})")
+            .setMessage("${updateInfo.changelog}\n\n¿Deseas descargar e instalar la actualización ahora?")
+            .setPositiveButton("Actualizar ahora") { _, _ -> onUpdate() }
             .setNegativeButton("Más tarde") { _, _ -> onCancel() }
-            .setCancelable(false)
+            .setCancelable(true)
             .show()
     }
 
     fun markUpdateInstalled(buildDate: String) {
         val prefs = context.getSharedPreferences("updates", Context.MODE_PRIVATE)
         prefs.edit().putString("last_build_date", buildDate).apply()
-        Log.d(TAG, "Marked update as installed: $buildDate")
+        Log.d(TAG, "Actualización marcada como instalada: $buildDate")
+    }
+
+    private fun compareSemVer(v1: String, v2: String): Int {
+        val parts1 = v1.split(".").mapNotNull { it.takeWhile { c -> c.isDigit() }.toIntOrNull() }
+        val parts2 = v2.split(".").mapNotNull { it.takeWhile { c -> c.isDigit() }.toIntOrNull() }
+        val maxLen = maxOf(parts1.size, parts2.size)
+        for (i in 0 until maxLen) {
+            val p1 = parts1.getOrElse(i) { 0 }
+            val p2 = parts2.getOrElse(i) { 0 }
+            if (p1 != p2) return p1.compareTo(p2)
+        }
+        return 0
     }
 }
