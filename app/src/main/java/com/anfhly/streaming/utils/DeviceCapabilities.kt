@@ -2,6 +2,8 @@ package com.anfhly.streaming.utils
 
 import android.content.Context
 import android.content.pm.PackageManager
+import android.media.MediaCodecInfo
+import android.media.MediaCodecList
 import android.os.Build
 import android.util.Log
 import androidx.media3.common.C
@@ -398,17 +400,99 @@ class DeviceCapabilities(private val context: Context) {
     }
 
     /**
-     * Devuelve la resolución máxima de video que el dispositivo puede manejar
-     * en el momento de reproducción, basado en RAM libre real.
-     * Independiente de la preferencia del usuario: es el techo físico real.
+     * Verifica si existe un decodificador de hardware que soporte
+     * la resolución y el tipo MIME pedidos.
+     *
+     * @param width  Ancho en píxeles (ej. 3840 para 4K)
+     * @param height Alto en píxeles (ej. 2160 para 4K)
+     * @param mimeTypes Lista de MIME a probar, en orden de preferencia.
+     *                  Por defecto: HEVC primero, luego H.264.
+     * @return true si el hardware puede decodificar esa resolución nativamente.
+     */
+    fun supportsHardwareResolution(
+        width: Int,
+        height: Int,
+        mimeTypes: List<String> = listOf("video/hevc", "video/avc", "video/x-vnd.on2.vp9")
+    ): Boolean {
+        return try {
+            val codecList = MediaCodecList(MediaCodecList.ALL_CODECS)
+            codecList.codecInfos.any { info ->
+                if (info.isEncoder) return@any false
+                // Solo decodificadores de hardware (excluye software como OMX.google.*)
+                val isHardware = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    info.isHardwareAccelerated
+                } else {
+                    !info.name.startsWith("OMX.google", ignoreCase = true) &&
+                    !info.name.startsWith("c2.android", ignoreCase = true)
+                }
+                if (!isHardware) return@any false
+
+                mimeTypes.any mimeCheck@{ mime ->
+                    if (!info.supportedTypes.any { it.equals(mime, ignoreCase = true) }) return@mimeCheck false
+                    try {
+                        val caps = info.getCapabilitiesForType(mime)
+                        caps.videoCapabilities?.isSizeSupported(width, height) == true
+                    } catch (e: Exception) {
+                        false
+                    }
+                }
+            }.also { supported ->
+                Log.d(TAG, "supportsHardwareResolution(${width}x${height})=$supported")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error checking hardware resolution support", e)
+            false // Si hay error, asumir que no puede para ser conservador
+        }
+    }
+
+    /**
+     * Detecta la resolución máxima real que los decodificadores de hardware del dispositivo soportan,
+     * probando desde 4K hacia abajo hasta encontrar soporte confirmado.
+     */
+    fun getHardwareMaxVideoSize(): Pair<Int, Int> {
+        val candidates = listOf(
+            Pair(3840, 2160), // 4K UHD
+            Pair(2560, 1440), // 2K / QHD
+            Pair(1920, 1080), // Full HD
+            Pair(1280, 720)   // HD (fallback garantizado)
+        )
+        for (size in candidates) {
+            if (supportsHardwareResolution(size.first, size.second)) {
+                Log.d(TAG, "getHardwareMaxVideoSize: hardware supports up to ${size.first}x${size.second}")
+                return size
+            }
+        }
+        Log.w(TAG, "getHardwareMaxVideoSize: no hardware decoder found, defaulting to 720p")
+        return Pair(1280, 720)
+    }
+
+    /**
+     * Devuelve el techo efectivo de resolución combinando:
+     * 1. RAM libre real (getPlaybackTier)
+     * 2. Capacidades reales del decodificador de hardware (getHardwareMaxVideoSize)
+     *
+     * El resultado es el mínimo entre ambos techos, garantizando fluidez.
+     * Retorna null solo si ambos techos son ilimitados (RAM alta + 4K confirmado).
      */
     fun getAdaptiveMaxVideoSize(): Pair<Int, Int>? {
-        return when (getPlaybackTier()) {
-            PlaybackTier.CRITICAL -> Pair(1280, 720)   // 720p máximo si RAM crítica
-            PlaybackTier.LOW      -> Pair(1920, 1080)  // 1080p si poca RAM
-            PlaybackTier.MEDIUM   -> Pair(2560, 1440)  // 1440p si RAM media
-            PlaybackTier.HIGH     -> null               // Sin límite si hay RAM suficiente
+        // Techo por RAM
+        val ramCeiling = when (getPlaybackTier()) {
+            PlaybackTier.CRITICAL -> Pair(1280, 720)
+            PlaybackTier.LOW      -> Pair(1920, 1080)
+            PlaybackTier.MEDIUM   -> Pair(2560, 1440)
+            PlaybackTier.HIGH     -> null // Sin límite de RAM
         }
+
+        // Techo por hardware (siempre comprobado)
+        val hwCeiling = getHardwareMaxVideoSize()
+
+        // Si el hardware soporta 4K y la RAM también, no imponemos límite
+        if (ramCeiling == null && hwCeiling == Pair(3840, 2160)) return null
+
+        // En cualquier otro caso, el techo es el menor de los dos
+        val effectiveW = if (ramCeiling != null) minOf(ramCeiling.first, hwCeiling.first) else hwCeiling.first
+        val effectiveH = if (ramCeiling != null) minOf(ramCeiling.second, hwCeiling.second) else hwCeiling.second
+        return Pair(effectiveW, effectiveH)
     }
 
     /**
