@@ -1,7 +1,7 @@
 {
-  "versionCode": 4,
-  "versionName": "1.0.3",
+  "versionCode": 5,
+  "versionName": "1.0.4",
   "buildDate": "2026-10-18",
   "apkUrl": "https://github.com/Adriavc15/anfhly-tv-releases/releases/latest/download/Anfhly.Tv.apk",
-  "changelog": "- Optimización adaptativa de reproducción según RAM disponible\n- Corrección de detección de RAM del dispositivo\n- Buffer y resolución máxima ajustados automáticamente al hardware\n- Audio Offload desactivado en dispositivos de gama baja para mayor estabilidad"
+  "changelog": "- Detección real de capacidades del decodificador de hardware (VPU)\n- La resolución máxima ahora se limita a lo que el chip puede manejar\n- Dispositivos con VPU 4K reproducen en 4K; los demás en 1080p o menos sin lentitud\n- Combinación de techo por RAM y techo por hardware para máxima fluidez"
 }
