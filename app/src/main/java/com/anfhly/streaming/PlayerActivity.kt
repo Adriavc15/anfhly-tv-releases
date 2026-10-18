@@ -42,6 +42,11 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.TrackSelectionParameters
+import androidx.media3.exoplayer.audio.AudioCapabilities
+import androidx.media3.exoplayer.audio.AudioSink
+import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
@@ -1317,18 +1322,51 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Configuración de AudioAttributes para cine, sonido envolvente (Dolby Digital / Atmos) y audio espacial.
+     */
+    private fun getDolbyAudioAttributes(): AudioAttributes {
+        return AudioAttributes.Builder()
+            .setUsage(C.USAGE_MEDIA)
+            .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+            .build()
+    }
+
+    /**
+     * Crea un DefaultRenderersFactory con AudioSink optimizado para Dolby Digital (AC-3),
+     * Dolby Digital Plus (E-AC-3), Dolby Atmos (E-AC-3 JOC) y bitstream passthrough por HDMI/eARC.
+     */
+    private fun createDolbyRenderersFactory(codecSelector: MediaCodecSelector? = null): DefaultRenderersFactory {
+        return object : DefaultRenderersFactory(this@PlayerActivity) {
+            override fun buildAudioSink(
+                context: android.content.Context,
+                enableFloatOutput: Boolean,
+                enableAudioTrackPlaybackParams: Boolean
+            ): AudioSink? {
+                return DefaultAudioSink.Builder(context)
+                    .setAudioCapabilities(AudioCapabilities.getCapabilities(context))
+                    .setEnableFloatOutput(enableFloatOutput)
+                    .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
+                    .build()
+            }
+        }.apply {
+            setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
+            setEnableAudioTrackPlaybackParams(true)
+            setEnableDecoderFallback(true)
+            if (codecSelector != null) {
+                setMediaCodecSelector(codecSelector)
+            }
+        }
+    }
+
     private fun initializePlayerInstance() {
         if (exoPlayer != null) return
         
-        Log.d(tag, "initializePlayerInstance: Creating ExoPlayer synchronously")
+        Log.d(tag, "initializePlayerInstance: Creating ExoPlayer synchronously with Dolby Atmos & Digital support")
         
-        // Configurar renderers con soporte de extensiones de software y fallback
+        // Configurar renderers con soporte Dolby y extensiones de software y fallback
         val codecSelector = createCodecSelectorWithTranslation()
-        val renderersFactory = DefaultRenderersFactory(this)
-            .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
-            .setEnableAudioTrackPlaybackParams(true)
-            .setEnableDecoderFallback(true)
-            .setMediaCodecSelector(codecSelector)
+        val renderersFactory = createDolbyRenderersFactory(codecSelector)
             
         // Configurar LoadControl optimizado para 1080p, 2K y 4K
         val allocator = DefaultAllocator(true, C.DEFAULT_BUFFER_SEGMENT_SIZE)
@@ -1339,10 +1377,16 @@ class PlayerActivity : AppCompatActivity() {
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
             
-        // Configurar TrackSelector inicial
+        // Configurar TrackSelector inicial con soporte para audio multicanal y espacial
         val parametersBuilder = androidx.media3.exoplayer.trackselection.DefaultTrackSelector.ParametersBuilder(this)
             .setPreferredAudioLanguage(preferredAudioLanguage)
             .setPreferredTextLanguage(preferredSubtitleLanguage)
+            .setAudioOffloadPreferences(
+                TrackSelectionParameters.AudioOffloadPreferences.Builder()
+                    .setAudioOffloadMode(TrackSelectionParameters.AudioOffloadPreferences.AUDIO_OFFLOAD_MODE_ENABLED)
+                    .setIsGaplessSupportRequired(false)
+                    .build()
+            )
             
         if (explicitVideoWidth > 0 && explicitVideoHeight > 0) {
             parametersBuilder.clearVideoSizeConstraints()
@@ -1368,6 +1412,7 @@ class PlayerActivity : AppCompatActivity() {
             .setRenderersFactory(renderersFactory)
             .setLoadControl(loadControl)
             .setTrackSelector(trackSelector)
+            .setAudioAttributes(getDolbyAudioAttributes(), /* handleAudioFocus = */ true)
             .build().apply {
                 videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT
                 addListener(object : Player.Listener {
@@ -1824,14 +1869,12 @@ class PlayerActivity : AppCompatActivity() {
                     // Liberar player actual
                     exoPlayer?.release()
                     
-                    // Crear nueva configuración con software codecs forzados
-                    val renderersFactory = DefaultRenderersFactory(this@PlayerActivity)
-                        .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
-                        .setEnableAudioTrackPlaybackParams(true)
-                        .setEnableDecoderFallback(true)
+                    // Crear nueva configuración con software codecs forzados y soporte Dolby
+                    val renderersFactory = createDolbyRenderersFactory(null)
                     
                     exoPlayer = ExoPlayer.Builder(this@PlayerActivity)
                         .setRenderersFactory(renderersFactory)
+                        .setAudioAttributes(getDolbyAudioAttributes(), /* handleAudioFocus = */ true)
                         .build()
                     
                     // Reconfigurar media source con la misma URL
@@ -1856,10 +1899,8 @@ class PlayerActivity : AppCompatActivity() {
                     // Liberar player actual
                     exoPlayer?.release()
                     
-                    // Configuración mínima - solo software codecs
-                    val renderersFactory = DefaultRenderersFactory(this@PlayerActivity)
-                        .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
-                        .setEnableDecoderFallback(true)
+                    // Configuración mínima - codecs con soporte Dolby
+                    val renderersFactory = createDolbyRenderersFactory(null)
                     
                     // LoadControl conservador
                     val loadControl = DefaultLoadControl.Builder()
@@ -1870,6 +1911,7 @@ class PlayerActivity : AppCompatActivity() {
                     exoPlayer = ExoPlayer.Builder(this@PlayerActivity)
                         .setRenderersFactory(renderersFactory)
                         .setLoadControl(loadControl)
+                        .setAudioAttributes(getDolbyAudioAttributes(), /* handleAudioFocus = */ true)
                         .build()
                     
                     // Reconfigurar media source
@@ -2407,6 +2449,33 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
+    private fun formatAudioTrackLabel(languageCode: String?, format: androidx.media3.common.Format): String {
+        val baseName = getLanguageName(languageCode)
+        val mimeType = format.sampleMimeType ?: ""
+        val channels = format.channelCount
+        
+        val codecInfo = when {
+            mimeType.contains("joc", ignoreCase = true) || format.codecs?.contains("joc", ignoreCase = true) == true -> "Dolby Atmos"
+            mimeType.equals("audio/eac3", ignoreCase = true) || mimeType.contains("eac3", ignoreCase = true) -> {
+                when {
+                    channels >= 8 -> "Dolby Digital Plus 7.1"
+                    channels >= 6 -> "Dolby Digital Plus 5.1"
+                    else -> "Dolby Digital Plus"
+                }
+            }
+            mimeType.equals("audio/ac3", ignoreCase = true) || mimeType.contains("ac3", ignoreCase = true) -> {
+                if (channels >= 6) "Dolby Digital 5.1" else "Dolby Digital"
+            }
+            mimeType.contains("true-hd", ignoreCase = true) -> "Dolby TrueHD"
+            mimeType.contains("dts", ignoreCase = true) -> "DTS"
+            channels >= 8 -> "7.1 Surround"
+            channels >= 6 -> "5.1 Surround"
+            else -> null
+        }
+        
+        return if (codecInfo != null) "$baseName ($codecInfo)" else baseName
+    }
+
     private fun showAudioTrackSelection() {
         try {
             Log.d(tag, "showAudioTrackSelection: START")
@@ -2437,7 +2506,7 @@ class PlayerActivity : AppCompatActivity() {
                     for (trackIndex in 0 until group.length) {
                         val format = group.getTrackFormat(trackIndex)
                         val languageCode = format.language
-                        val label = getLanguageName(languageCode)
+                        val label = formatAudioTrackLabel(languageCode, format)
                         val selected = group.isTrackSelected(trackIndex)
                         if (selected) selectedIndex = audioTracks.size
                         audioTracks.add(label)
@@ -3825,14 +3894,12 @@ class PlayerActivity : AppCompatActivity() {
                             // Liberar player actual
                             exoPlayer?.release()
                             
-                            // Crear nueva configuración optimizada
-                            val renderersFactory = DefaultRenderersFactory(this@PlayerActivity)
-                                .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
-                                .setEnableDecoderFallback(true)
-                                .setMediaCodecSelector(createCodecSelectorWithTranslation())
+                            // Crear nueva configuración optimizada con soporte Dolby
+                            val renderersFactory = createDolbyRenderersFactory(createCodecSelectorWithTranslation())
                             
                             exoPlayer = ExoPlayer.Builder(this@PlayerActivity)
                                 .setRenderersFactory(renderersFactory)
+                                .setAudioAttributes(getDolbyAudioAttributes(), /* handleAudioFocus = */ true)
                                 .build()
                             
                             // Configurar listener

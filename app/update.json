@@ -1,7 +1,7 @@
 {
-  "versionCode": 2,
-  "versionName": "1.0.1",
+  "versionCode": 3,
+  "versionName": "1.0.2",
   "buildDate": "2026-10-18",
   "apkUrl": "https://github.com/Adriavc15/anfhly-tv-releases/releases/latest/download/Anfhly.Tv.apk",
-  "changelog": "- Corrección integral de navegación con control remoto y D-pad en HomeScreen\n- Eliminación del texto 'Ajustes' en ConfigScreen\n- Transición suave de foco entre pestañas y filas de contenido"
+  "changelog": "- Soporte nativo para Dolby Digital (AC-3), Dolby Digital Plus (E-AC-3) y Dolby Atmos (E-AC-3 JOC)\n- Passthrough de audio HDMI/eARC para Soundbars y Home Theaters\n- Audio Offload y Spatial Audio en Android TV\n- Identificación inteligente de pistas de audio (Dolby Atmos, 5.1, 7.1)"
 }
