@@ -152,6 +152,8 @@ class PlayerActivity : AppCompatActivity() {
     private var currentVideoMimeType: String? = null
     private var currentStartPosition: Long = -1L
     private var preferredPlayer: String = "exoplayer"
+    private var requiresExtraBuffering: Boolean = false
+    private var forceSoftwareDecoding: Boolean = false
     
     // Custom SubtitleView para evitar zoom con el video
     private var customSubtitleView: androidx.media3.ui.SubtitleView? = null
@@ -1162,6 +1164,16 @@ class PlayerActivity : AppCompatActivity() {
                     currentVideoMimeType = video.type
                     Log.d(tag, "Video MIME type: ${video.type}")
 
+                    // Guardar si requiere buffering extra (para OK.ru, VidMoly, etc.)
+                    requiresExtraBuffering = video.extraBuffering
+                    Log.d(tag, "Video requires extra buffering: $requiresExtraBuffering")
+
+                    // Detectar si es OK.ru para forzar decodificación por software
+                    val isOkruSource = finalVideoUrl.contains("ok.ru", ignoreCase = true) ||
+                                      video.headers?.get("Referer")?.contains("ok.ru") == true
+                    forceSoftwareDecoding = isOkruSource
+                    Log.d(tag, "OK.ru detected: $isOkruSource, forcing software decoding: $forceSoftwareDecoding")
+
                     // Guardar calidades manuales si están disponibles
                     if (video.qualities.isNotEmpty()) {
                         manualQualities = video.qualities
@@ -1253,13 +1265,15 @@ class PlayerActivity : AppCompatActivity() {
                         val video = Extractor.extract(filemoonUrl)
                         val fallbackUrl = video.source
                         val fallbackHeaders = video.headers ?: emptyMap()
+                        requiresExtraBuffering = video.extraBuffering
+                        forceSoftwareDecoding = false // filemoon no requiere software decoding
                         proceedToPlay(fallbackUrl, fallbackHeaders)
                         return@launch
                     } catch (e2: Exception) {
                         Log.e(tag, "Filemoon fallback also failed: ${e2.message}", e2)
                     }
                 }
-                
+
                 // Si filemoonUrl también falla, intentar con luluvdoUrl
                 if (!luluvdoUrl.isNullOrEmpty() && finalVideoUrl != luluvdoUrl) {
                     Log.d(tag, "Trying fallback to luluvdoUrl: $luluvdoUrl")
@@ -1267,6 +1281,8 @@ class PlayerActivity : AppCompatActivity() {
                         val video = Extractor.extract(luluvdoUrl)
                         val fallbackUrl = video.source
                         val fallbackHeaders = video.headers ?: emptyMap()
+                        requiresExtraBuffering = video.extraBuffering
+                        forceSoftwareDecoding = false // luluvdo no requiere software decoding
                         proceedToPlay(fallbackUrl, fallbackHeaders)
                         return@launch
                     } catch (e3: Exception) {
@@ -1382,15 +1398,31 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun initializePlayerInstance() {
         if (exoPlayer != null) return
-        
+
         Log.d(tag, "initializePlayerInstance: Creating ExoPlayer synchronously with Dolby Atmos & Digital support")
-        
+
         // Configurar renderers con soporte Dolby y extensiones de software y fallback
-        val codecSelector = createCodecSelectorWithTranslation()
+        // Para OK.ru, forzar decodificación por software para evitar lag de hardware
+        val codecSelector = if (forceSoftwareDecoding) {
+            Log.d(tag, "initializePlayerInstance: Forcing software decoding for OK.ru")
+            createSoftwareOnlyCodecSelector()
+        } else {
+            createCodecSelectorWithTranslation()
+        }
         val renderersFactory = createDolbyRenderersFactory(codecSelector)
-            
+
         // LoadControl adaptativo según RAM libre real del dispositivo en este momento
-        val loadControl = deviceCapabilities.createOptimizedLoadControl()
+        // Si requiere buffering extra (OK.ru, VidMoly), usar LoadControl con más buffer
+        val loadControl = if (requiresExtraBuffering) {
+            Log.d(tag, "initializePlayerInstance: Using extra buffering LoadControl for OK.ru/slow servers")
+            DefaultLoadControl.Builder()
+                .setBufferDurationsMs(10000, 60000, 3000, 5000) // Buffer más grande: 10s min, 60s max
+                .setTargetBufferBytes(64 * 1024 * 1024) // 64 MB de buffer
+                .setPrioritizeTimeOverSizeThresholds(true)
+                .build()
+        } else {
+            deviceCapabilities.createOptimizedLoadControl()
+        }
         val playbackTier = deviceCapabilities.getPlaybackTier()
         val adaptiveMaxSize = deviceCapabilities.getAdaptiveMaxVideoSize()
         val useAudioOffload = deviceCapabilities.shouldEnableAudioOffload()
@@ -1618,23 +1650,37 @@ class PlayerActivity : AppCompatActivity() {
                           videoUrl.contains("ondemandhls", ignoreCase = true) ||
                           currentVideoMimeType == androidx.media3.common.MimeTypes.APPLICATION_M3U8
 
+        val isVidMoly = videoUrl.contains("vidmoly", ignoreCase = true)
+        val isOkru = videoUrl.contains("ok.ru", ignoreCase = true) || headers["Referer"]?.contains("ok.ru") == true
+
         val videoSource = if (isHlsStream) {
-            val isVidMoly = videoUrl.contains("vidmoly", ignoreCase = true)
-            
-            if (isVidMoly) {
-                val vidmolyDataSourceFactory = DefaultHttpDataSource.Factory()
+            if (isVidMoly || isOkru) {
+                // Configuración especial para VidMoly y OK.ru (timeouts largos para evitar congelamientos)
+                val specialDataSourceFactory = DefaultHttpDataSource.Factory()
                     .setUserAgent(userAgent)
                     .setAllowCrossProtocolRedirects(true)
                     .setDefaultRequestProperties(headers)
                     .setConnectTimeoutMs(45000)
                     .setReadTimeoutMs(120000)
-                val vidmolyDataSource = androidx.media3.datasource.DefaultDataSource.Factory(this, vidmolyDataSourceFactory)
-                HlsMediaSource.Factory(vidmolyDataSource).setAllowChunklessPreparation(true).createMediaSource(mediaItem)
+                val specialDataSource = androidx.media3.datasource.DefaultDataSource.Factory(this, specialDataSourceFactory)
+                HlsMediaSource.Factory(specialDataSource).setAllowChunklessPreparation(true).createMediaSource(mediaItem)
             } else {
                 HlsMediaSource.Factory(dataSourceFactory).setAllowChunklessPreparation(true).createMediaSource(mediaItem)
             }
         } else {
-            ProgressiveMediaSource.Factory(dataSourceFactory).createMediaSource(mediaItem)
+            if (isOkru) {
+                // Configuración especial para OK.ru MP4 (timeouts largos para evitar congelamientos)
+                val okruDataSourceFactory = DefaultHttpDataSource.Factory()
+                    .setUserAgent(userAgent)
+                    .setAllowCrossProtocolRedirects(true)
+                    .setDefaultRequestProperties(headers)
+                    .setConnectTimeoutMs(45000)
+                    .setReadTimeoutMs(120000)
+                val okruDataSource = androidx.media3.datasource.DefaultDataSource.Factory(this, okruDataSourceFactory)
+                ProgressiveMediaSource.Factory(okruDataSource).createMediaSource(mediaItem)
+            } else {
+                ProgressiveMediaSource.Factory(dataSourceFactory).createMediaSource(mediaItem)
+            }
         }
 
         val mediaSource = wrapWithManualSubtitle(videoSource, dataSourceFactory)
@@ -1700,6 +1746,33 @@ class PlayerActivity : AppCompatActivity() {
                 Log.d(tag, "Seeked to startPosition: $startPosition before prepare")
             }
             prepare()
+        }
+    }
+
+    /**
+     * Crea un MediaCodecSelector que SOLO usa decodificadores de software
+     * Útil para OK.ru donde el hardware puede causar lag/congelamiento
+     */
+    private fun createSoftwareOnlyCodecSelector(): MediaCodecSelector {
+        return MediaCodecSelector { mimeType, requiresSecureDecoder, requiresTunneling ->
+            val defaultSelector = MediaCodecSelector.DEFAULT
+            val allCodecs = defaultSelector.getDecoderInfos(mimeType, requiresSecureDecoder, requiresTunneling)
+
+            Log.d(tag, "Available codecs for $mimeType: ${allCodecs.size}, filtering software only")
+
+            // Filtrar solo codecs de software
+            val softwareCodecs = allCodecs.filter { codec ->
+                !isHardwareCodec(codec) || codec.softwareOnly || codec.name.contains("OMX.google") || codec.name.contains("c2.android")
+            }
+
+            Log.d(tag, "Software codecs for $mimeType: ${softwareCodecs.size}")
+
+            if (softwareCodecs.isEmpty()) {
+                Log.w(tag, "No software codecs found for $mimeType, using all codecs as fallback")
+                allCodecs
+            } else {
+                softwareCodecs
+            }
         }
     }
 
@@ -4042,6 +4115,8 @@ class PlayerActivity : AppCompatActivity() {
                     val newUrl = video.source
                     val newHeaders = video.headers ?: currentHeaders
                     val newExpiresAt = video.expiresAt
+                    requiresExtraBuffering = video.extraBuffering
+                    // Mantener forceSoftwareDecoding como estaba (no cambiar al refrescar)
                     
                     Log.d(tag, "New URL extracted: ${newUrl.take(50)}...")
                     Log.d(tag, "New headers: ${newHeaders.keys.joinToString()}")

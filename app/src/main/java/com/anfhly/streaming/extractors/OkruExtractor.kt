@@ -97,9 +97,12 @@ class OkruExtractor : Extractor() {
         Log.d("OkruExtractor", "Qualities: ${sortedVideos.map { it.first }}")
 
         // Seleccionar calidad por defecto
+        // Priorizar 720p para evitar lag/congelamiento por decodificación de hardware
+        // 1080p/4K puede causar lag en dispositivos con hardware limitado
         val default = sortedVideos.find { it.first == "Auto" }
-            ?: sortedVideos.find { it.first == "1080p" }
             ?: sortedVideos.find { it.first == "720p" }
+            ?: sortedVideos.find { it.first == "480p" }
+            ?: sortedVideos.find { it.first == "1080p" }
             ?: sortedVideos.first()
 
         // Si hay HLS nativo, no devolvemos calidades manuales (ExoPlayer usa su propio track selector)
@@ -137,7 +140,7 @@ class OkruExtractor : Extractor() {
                 "Origin"     to "https://ok.ru"
             ),
             type = mimeType,
-            extraBuffering = mimeType == MimeTypes.APPLICATION_M3U8,
+            extraBuffering = true, // Activar buffering extra para OK.ru (HLS y MP4) para evitar congelamientos
             qualities = qualities
         )
     }
