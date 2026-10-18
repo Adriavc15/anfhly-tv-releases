@@ -740,7 +740,7 @@ fun ContinueWatchingCard(
                     modifier = Modifier
                         .fillMaxHeight()
                         .fillMaxWidth(fraction = progressFraction)
-                        .background(Color(0xFFE50914)) // Rojo Netflix
+                        .background(Color.White)
                 )
             }
         }
