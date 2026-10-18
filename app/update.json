@@ -3,5 +3,5 @@
   "versionName": "1.1.1",
   "buildDate": "2026-10-18",
   "apkUrl": "https://github.com/Adriavc15/anfhly-tv-releases/releases/latest/download/Anfhly.Tv.apk",
-  "changelog": "- DiseÃ±o mejorado de cards 'Continuar viendo' sin bordes, estilo consistente con resto de la app\n- ImÃ¡genes de plataformas de streaming actualizadas a versiones de mayor calidad\n- Iconos de plataformas mÃ¡s grandes (140x90dp) para mejor integraciÃ³n visual\n- Barra de progreso blanca en 'Continuar viendo' para mejor consistencia\n- NavegaciÃ³n mejorada entre plataformas y contenido con scroll suave\n- CorrecciÃ³n de Ã­ndices de scroll para incluir secciÃ³n 'Continuar viendo'\n- EliminaciÃ³n de efecto de rebote en navegaciÃ³n con animaciones fluidas"
+  "changelog": "- Diseño mejorado de cards Continuar viendo sin bordes, estilo consistente con resto de la app\n- Imágenes de plataformas de streaming actualizadas a versiones de mayor calidad\n- Iconos de plataformas más grandes (140x90dp) para mejor integración visual\n- Barra de progreso blanca en Continuar viendo para mejor consistencia\n- Navegación mejorada entre plataformas y contenido con scroll suave\n- Corrección de índices de scroll para incluir sección Continuar viendo\n- Eliminación de efecto de rebote en navegación con animaciones fluidas"
 }
