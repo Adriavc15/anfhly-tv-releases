@@ -2659,15 +2659,12 @@ fun HomeScreen(
                         headerHasFocus = false
                         scope.launch {
                             try {
-                                listState.scrollToItem(streamingListIndex)
+                                listState.animateScrollToItem(streamingListIndex)
                             } catch (_: Exception) {}
-                            for (d in listOf(30L, 80L, 150L)) {
-                                delay(d)
-                                try {
-                                    streamingFocusRequester.requestFocus()
-                                    break
-                                } catch (_: Exception) {}
-                            }
+                            delay(100)
+                            try {
+                                streamingFocusRequester.requestFocus()
+                            } catch (_: Exception) {}
                         }
                     }
 
@@ -2677,15 +2674,12 @@ fun HomeScreen(
                         focusedRowIndex = 0
                         scope.launch {
                             try {
-                                listState.scrollToItem(firstCardsListIndex)
+                                listState.animateScrollToItem(firstCardsListIndex)
                             } catch (_: Exception) {}
-                            for (d in listOf(30L, 80L, 150L)) {
-                                delay(d)
-                                try {
-                                    firstCardFocusRequester.requestFocus()
-                                    break
-                                } catch (_: Exception) {}
-                            }
+                            delay(100)
+                            try {
+                                firstCardFocusRequester.requestFocus()
+                            } catch (_: Exception) {}
                         }
                     }
 
@@ -2696,15 +2690,12 @@ fun HomeScreen(
                         scope.launch {
                             try {
                                 val continueWatchingIndex = (if (showHero) 1 else 0) + (if (showStreamingPlatforms) 1 else 0)
-                                listState.scrollToItem(continueWatchingIndex)
+                                listState.animateScrollToItem(continueWatchingIndex)
                             } catch (_: Exception) {}
-                            for (d in listOf(30L, 80L, 150L)) {
-                                delay(d)
-                                try {
-                                    firstCardFocusRequester.requestFocus()
-                                    break
-                                } catch (_: Exception) {}
-                            }
+                            delay(100)
+                            try {
+                                firstCardFocusRequester.requestFocus()
+                            } catch (_: Exception) {}
                         }
                     }
 
@@ -2717,29 +2708,23 @@ fun HomeScreen(
                             heroHasFocus = true
                             scope.launch {
                                 try {
-                                    listState.scrollToItem(0)
+                                    listState.animateScrollToItem(0)
                                 } catch (_: Exception) {}
-                                for (d in listOf(30L, 80L, 150L)) {
-                                    delay(d)
-                                    try {
-                                        heroFocusRequester.requestFocus()
-                                        break
-                                    } catch (_: Exception) {}
-                                }
+                                delay(100)
+                                try {
+                                    heroFocusRequester.requestFocus()
+                                } catch (_: Exception) {}
                             }
                         } else {
                             headerHasFocus = true
                             scope.launch {
                                 try {
-                                    listState.scrollToItem(0)
+                                    listState.animateScrollToItem(0)
                                 } catch (_: Exception) {}
-                                for (d in listOf(30L, 80L, 150L)) {
-                                    delay(d)
-                                    try {
-                                        headerFocusRequester.requestFocus()
-                                        break
-                                    } catch (_: Exception) {}
-                                }
+                                delay(100)
+                                try {
+                                    headerFocusRequester.requestFocus()
+                                } catch (_: Exception) {}
                             }
                         }
                     }
@@ -3065,8 +3050,8 @@ fun HomeScreen(
                                             headerHasFocus = false
                                             scope.launch {
                                                 try {
-                                                    listState.scrollToItem(0)
-                                                    delay(50)
+                                                    listState.animateScrollToItem(0)
+                                                    delay(100)
                                                     heroFocusRequester.requestFocus()
                                                 } catch (_: Exception) {
                                                     try {
@@ -3127,15 +3112,12 @@ fun HomeScreen(
                                                     heroHasFocus = true
                                                     scope.launch {
                                                         try {
-                                                            listState.scrollToItem(0)
+                                                            listState.animateScrollToItem(0)
                                                         } catch (_: Exception) {}
-                                                        for (d in listOf(30L, 80L, 150L)) {
-                                                            delay(d)
-                                                            try {
-                                                                heroFocusRequester.requestFocus()
-                                                                break
-                                                            } catch (_: Exception) {}
-                                                        }
+                                                        delay(100)
+                                                        try {
+                                                            heroFocusRequester.requestFocus()
+                                                        } catch (_: Exception) {}
                                                     }
                                                 } else {
                                                     headerHasFocus = true
