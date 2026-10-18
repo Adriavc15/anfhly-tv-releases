@@ -1393,7 +1393,6 @@ class PlayerActivity : AppCompatActivity() {
             
         if (explicitVideoWidth > 0 && explicitVideoHeight > 0) {
             parametersBuilder.clearVideoSizeConstraints()
-            parametersBuilder.setMinVideoSize(explicitVideoWidth, explicitVideoHeight)
             parametersBuilder.setMaxVideoSize(explicitVideoWidth, explicitVideoHeight)
             Log.d(tag, "initializePlayerInstance: explicit size applied = ${explicitVideoWidth}x${explicitVideoHeight}")
         } else {
@@ -1502,7 +1501,6 @@ class PlayerActivity : AppCompatActivity() {
             
         if (explicitVideoWidth > 0 && explicitVideoHeight > 0) {
             parametersBuilder.clearVideoSizeConstraints()
-            parametersBuilder.setMinVideoSize(explicitVideoWidth, explicitVideoHeight)
             parametersBuilder.setMaxVideoSize(explicitVideoWidth, explicitVideoHeight)
             Log.d(tag, "Updated TrackSelector: explicit size = ${explicitVideoWidth}x${explicitVideoHeight}")
         } else if (preferredQuality != "auto") {
@@ -1636,7 +1634,6 @@ class PlayerActivity : AppCompatActivity() {
                     Log.d(tag, "Cleared track selector video size constraints for manual quality stream")
                 } else if (explicitVideoWidth > 0 && explicitVideoHeight > 0) {
                     parametersBuilder.clearVideoSizeConstraints()
-                    parametersBuilder.setMinVideoSize(explicitVideoWidth, explicitVideoHeight)
                     parametersBuilder.setMaxVideoSize(explicitVideoWidth, explicitVideoHeight)
                     Log.d(tag, "Applied explicit size in setupExoPlayer: ${explicitVideoWidth}x${explicitVideoHeight}")
                 } else if (preferredQuality != "auto") {
@@ -2279,6 +2276,7 @@ class PlayerActivity : AppCompatActivity() {
                     if (videoOverride != null) {
                         trackParamsBuilder = trackParamsBuilder
                             .clearVideoSizeConstraints()
+                            .setMaxVideoSize(explicitVideoWidth, explicitVideoHeight)
                             .setOverrideForType(videoOverride)
                         Log.d(tag, "QUALITY EXPLICIT SUCCESS: Applied explicit override")
                     } else {
@@ -2351,7 +2349,7 @@ class PlayerActivity : AppCompatActivity() {
                 skipAutoAudioSelection = false
                 Log.d(tag, "Reset skipAutoAudioSelection flag")
             }
-            if (skipAutoQualitySelection) {
+            if (skipAutoQualitySelection && explicitVideoWidth <= 0) {
                 skipAutoQualitySelection = false
                 Log.d(tag, "Reset skipAutoQualitySelection flag")
             }
@@ -3522,18 +3520,62 @@ class PlayerActivity : AppCompatActivity() {
                 val qualityTracks = tempTracks.map { it.first }
                 val trackIndices = tempTracks.map { it.second }
                 
-                // Encontrar el índice seleccionado actualmente
-                val currentSelectedIndex = trackIndices.indexOfFirst { (groupIdx, trackIdx, _) ->
-                    videoGroups[groupIdx].isTrackSelected(trackIdx)
-                }.takeIf { it >= 0 } ?: 0
+                // Añadir opción "Auto (Recomendado)" al inicio de las opciones
+                val displayOptions = mutableListOf<String>()
+                displayOptions.add("Auto (Recomendado)")
+                displayOptions.addAll(qualityTracks)
                 
-                val adapter = android.widget.ArrayAdapter(this, com.anfhly.streaming.R.layout.item_sidebar_choice, android.R.id.text1, qualityTracks)
+                // Determinar qué opción está actualmente seleccionada
+                val currentSelectedIndex = if (explicitVideoWidth <= 0) {
+                    0 // Auto
+                } else {
+                    val foundIdx = trackIndices.indexOfFirst { (groupIdx, trackIdx, _) ->
+                        val fmt = videoGroups[groupIdx].getTrackFormat(trackIdx)
+                        (fmt.width == explicitVideoWidth && fmt.height == explicitVideoHeight) ||
+                        (maxOf(fmt.width, fmt.height) == maxOf(explicitVideoWidth, explicitVideoHeight))
+                    }
+                    if (foundIdx >= 0) foundIdx + 1 else 0
+                }
+                
+                val adapter = android.widget.ArrayAdapter(this, com.anfhly.streaming.R.layout.item_sidebar_choice, android.R.id.text1, displayOptions)
                 AlertDialog.Builder(this, androidx.appcompat.R.style.Theme_AppCompat_Dialog_Alert)
                     .setTitle("Seleccionar Calidad")
                     .setSingleChoiceItems(adapter, currentSelectedIndex) { dialog, which ->
-                        val (groupIndex, trackIndex, _) = trackIndices[which]
+                        dialog.dismiss()
+                        
+                        // Restablecer zoom visual
+                        playerView?.videoSurfaceView?.apply {
+                            scaleX = 1f
+                            scaleY = 1f
+                        }
+                        playerView?.resizeMode = currentResizeMode
+                        
+                        if (which == 0) {
+                            // Opción: "Auto (Recomendado)"
+                            explicitVideoWidth = -1
+                            explicitVideoHeight = -1
+                            explicitVideoBitrate = -1
+                            skipAutoQualitySelection = false
+                            preferredQuality = "auto"
+                            
+                            val adaptiveMaxSize = deviceCapabilities.getAdaptiveMaxVideoSize()
+                            val paramsBuilder = player.trackSelectionParameters.buildUpon()
+                                .clearOverridesOfType(C.TRACK_TYPE_VIDEO)
+                                .clearVideoSizeConstraints()
+                            if (adaptiveMaxSize != null) {
+                                paramsBuilder.setMaxVideoSize(adaptiveMaxSize.first, adaptiveMaxSize.second)
+                            }
+                            player.trackSelectionParameters = paramsBuilder.build()
+                            Toast.makeText(this, "Calidad: Auto (Adaptativa)", Toast.LENGTH_SHORT).show()
+                            Log.d(tag, "Calidad cambiada a Auto (Adaptativa)")
+                            return@setSingleChoiceItems
+                        }
+                        
+                        // Opción de calidad específica
+                        val trackPos = which - 1
+                        val (groupIndex, trackIndex, _) = trackIndices[trackPos]
                         val format = videoGroups[groupIndex].getTrackFormat(trackIndex)
-                        val selectedQuality = qualityTracks[which]
+                        val selectedQuality = qualityTracks[trackPos]
 
                         // Protección adaptativa de hardware/RAM:
                         // Si el dispositivo no puede decodificar 4K/2K nativo (ej. <= 1.5GB RAM o sin VPU 4K),
@@ -3567,38 +3609,21 @@ class PlayerActivity : AppCompatActivity() {
                         explicitVideoHeight = effectiveFormat.height
                         explicitVideoBitrate = effectiveFormat.bitrate
                         
-                        dialog.dismiss()
-                        
-                        // Restablecer zoom visual
-                        playerView?.videoSurfaceView?.apply {
-                            scaleX = 1f
-                            scaleY = 1f
+                        try {
+                            val trackOverride = TrackSelectionOverride(videoGroups[groupIndex].mediaTrackGroup, listOf(effectiveTrackIndex))
+                            val updatedParams = player.trackSelectionParameters.buildUpon()
+                                .clearOverridesOfType(C.TRACK_TYPE_VIDEO)
+                                .clearVideoSizeConstraints()
+                                .setMaxVideoSize(effectiveFormat.width, effectiveFormat.height)
+                                .setOverrideForType(trackOverride)
+                                .build()
+                            player.trackSelectionParameters = updatedParams
+                            Toast.makeText(this, "Calidad: $effectiveQuality", Toast.LENGTH_SHORT).show()
+                            Log.d(tag, "Calidad cambiada dinámicamente: $effectiveQuality (${effectiveFormat.width}x${effectiveFormat.height})")
+                        } catch (e: Exception) {
+                            Log.e(tag, "Error al aplicar cambio dinámico de calidad: ${e.message}", e)
+                            Toast.makeText(this, "Error al cambiar calidad: ${e.message}", Toast.LENGTH_SHORT).show()
                         }
-                        playerView?.resizeMode = currentResizeMode
-                        
-                        val isVidhide = currentVideoUrl.contains("vidhide") || currentVideoUrl.contains("streamwish")
-                        if (!isVidhide) {
-                            try {
-                                val trackOverride = TrackSelectionOverride(videoGroups[groupIndex].mediaTrackGroup, listOf(effectiveTrackIndex))
-                                val updatedParams = player.trackSelectionParameters.buildUpon()
-                                    .clearOverridesOfType(C.TRACK_TYPE_VIDEO)
-                                    .clearVideoSizeConstraints()
-                                    .setOverrideForType(trackOverride)
-                                    .build()
-                                player.trackSelectionParameters = updatedParams
-                                Toast.makeText(this, "Calidad: $effectiveQuality", Toast.LENGTH_SHORT).show()
-                                Log.d(tag, "Calidad cambiada dinámicamente con TrackSelectionOverride: $effectiveQuality (${effectiveFormat.width}x${effectiveFormat.height})")
-                                return@setSingleChoiceItems
-                            } catch (e: Exception) {
-                                Log.w(tag, "Fallo al aplicar cambio dinámico de calidad, recargando: ${e.message}")
-                            }
-                        }
-                        
-                        Toast.makeText(this, "Cargando: $effectiveQuality", Toast.LENGTH_SHORT).show()
-                        Log.d(tag, "Calidad seleccionada para recarga: $effectiveQuality (${effectiveFormat.width}x${effectiveFormat.height})")
-                        
-                        val currentPosition = player.currentPosition
-                        changeQualityManual(currentVideoUrl, currentPosition)
                     }
                     .show().also { styleSidebarDialog(it) }
             }
