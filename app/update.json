@@ -1,7 +1,7 @@
 {
-  "versionCode": 8,
-  "versionName": "1.0.7",
+  "versionCode": 9,
+  "versionName": "1.0.8",
   "buildDate": "2026-10-18",
   "apkUrl": "https://github.com/Adriavc15/anfhly-tv-releases/releases/latest/download/Anfhly.Tv.apk",
-  "changelog": "- Desbloqueo de reproducciÃ³n nativa en 4K y 2K para chips con VPU acelerada por hardware\n- EliminaciÃ³n de techos artificiales de RAM en decodificaciÃ³n de video por hardware (zero-copy)\n- Carga directa y sin restricciones de 4K, 2K, 1080p y demÃ¡s calidades desde el menÃº del reproductor"
+  "changelog": "- SoluciÃ³n definitiva a caÃ­das de rendimiento y congelamientos al cambiar de calidad en el selector del reproductor\n- IncorporaciÃ³n de la opciÃ³n 'Auto (Recomendado)' para alternar entre selecciÃ³n manual y adaptaciÃ³n automÃ¡tica fluida\n- EliminaciÃ³n de restricciones de ventana fija rÃ­gida (tolerancia cero) que generaban microcortes en ExoPlayer\n- Cambio dinÃ¡mico de resoluciÃ³n in-place y elÃ¡stico sin destruir ni recargar el reproductor"
 }
