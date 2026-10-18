@@ -164,11 +164,48 @@ class DeviceCapabilities(private val context: Context) {
         return try {
             val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
             val memoryInfo = android.app.ActivityManager.MemoryInfo()
+            activityManager.getMemoryInfo(memoryInfo) // BUG FIX: se debe llamar para poblar los campos
             val totalRam = (memoryInfo.totalMem / (1024 * 1024)).toInt() // Convertir a MB
             Pair(totalRam, "${totalRam}MB")
         } catch (e: Exception) {
             Log.e(TAG, "Error getting RAM info", e)
             Pair(2048, "2GB") // Valor por defecto
+        }
+    }
+
+    /**
+     * Obtiene la RAM libre disponible en tiempo real (en MB).
+     * Más preciso que totalRam para decisiones de rendimiento durante reproducción.
+     */
+    fun getFreeRamMb(): Int {
+        return try {
+            val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+            val memoryInfo = android.app.ActivityManager.MemoryInfo()
+            activityManager.getMemoryInfo(memoryInfo)
+            (memoryInfo.availMem / (1024 * 1024)).toInt()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting free RAM", e)
+            512 // Asumir 512 MB libres si hay error
+        }
+    }
+
+    /**
+     * Niveles de rendimiento para reproducción de video según RAM libre disponible.
+     */
+    enum class PlaybackTier { CRITICAL, LOW, MEDIUM, HIGH }
+
+    /**
+     * Determina el tier de reproducción basado en RAM libre real en el momento de reproducir.
+     */
+    fun getPlaybackTier(): PlaybackTier {
+        val freeMb = getFreeRamMb()
+        return when {
+            freeMb < 300  -> PlaybackTier.CRITICAL // < 300 MB libres: emergencia
+            freeMb < 600  -> PlaybackTier.LOW      // 300-600 MB libres: gama muy baja
+            freeMb < 1200 -> PlaybackTier.MEDIUM   // 600 MB - 1.2 GB libres: gama media
+            else          -> PlaybackTier.HIGH     // > 1.2 GB libres: gama alta
+        }.also {
+            Log.d(TAG, "PlaybackTier=$it (freeRam=${freeMb}MB)")
         }
     }
     
@@ -331,31 +368,56 @@ class DeviceCapabilities(private val context: Context) {
     }
     
     /**
-     * Crea una configuración de LoadControl optimizada para el dispositivo
+     * Crea una configuración de LoadControl optimizada para el dispositivo.
+     * Usa RAM libre real en lugar del nivel de performance estático.
      */
     fun createOptimizedLoadControl(): DefaultLoadControl {
-        return when (performanceLevel) {
-            PerformanceLevel.PREMIUM -> DefaultLoadControl.Builder()
-                .setBufferDurationsMs(15000, 60000, 2500, 5000)
-                .setTargetBufferBytes(64 * 1024 * 1024) // 64MB
+        return when (getPlaybackTier()) {
+            PlaybackTier.CRITICAL -> DefaultLoadControl.Builder()
+                // Buffer mínimo: reduce footprint de memoria al máximo
+                .setBufferDurationsMs(3000, 10000, 1000, 2000)
+                .setTargetBufferBytes(8 * 1024 * 1024)  // 8 MB
                 .setPrioritizeTimeOverSizeThresholds(true)
                 .build()
-            PerformanceLevel.HIGH -> DefaultLoadControl.Builder()
-                .setBufferDurationsMs(12000, 45000, 2000, 4000)
-                .setTargetBufferBytes(48 * 1024 * 1024) // 48MB
-                .setPrioritizeTimeOverSizeThresholds(true)
-                .build()
-            PerformanceLevel.MEDIUM -> DefaultLoadControl.Builder()
-                .setBufferDurationsMs(8000, 30000, 1500, 3000)
-                .setTargetBufferBytes(32 * 1024 * 1024) // 32MB
-                .setPrioritizeTimeOverSizeThresholds(true)
-                .build()
-            PerformanceLevel.LOW -> DefaultLoadControl.Builder()
+            PlaybackTier.LOW -> DefaultLoadControl.Builder()
                 .setBufferDurationsMs(5000, 20000, 1500, 2500)
-                .setTargetBufferBytes(16 * 1024 * 1024) // 16MB
+                .setTargetBufferBytes(16 * 1024 * 1024) // 16 MB
+                .setPrioritizeTimeOverSizeThresholds(true)
+                .build()
+            PlaybackTier.MEDIUM -> DefaultLoadControl.Builder()
+                .setBufferDurationsMs(8000, 30000, 1500, 3000)
+                .setTargetBufferBytes(32 * 1024 * 1024) // 32 MB
+                .setPrioritizeTimeOverSizeThresholds(true)
+                .build()
+            PlaybackTier.HIGH -> DefaultLoadControl.Builder()
+                .setBufferDurationsMs(15000, 60000, 2500, 5000)
+                .setTargetBufferBytes(64 * 1024 * 1024) // 64 MB
                 .setPrioritizeTimeOverSizeThresholds(true)
                 .build()
         }
+    }
+
+    /**
+     * Devuelve la resolución máxima de video que el dispositivo puede manejar
+     * en el momento de reproducción, basado en RAM libre real.
+     * Independiente de la preferencia del usuario: es el techo físico real.
+     */
+    fun getAdaptiveMaxVideoSize(): Pair<Int, Int>? {
+        return when (getPlaybackTier()) {
+            PlaybackTier.CRITICAL -> Pair(1280, 720)   // 720p máximo si RAM crítica
+            PlaybackTier.LOW      -> Pair(1920, 1080)  // 1080p si poca RAM
+            PlaybackTier.MEDIUM   -> Pair(2560, 1440)  // 1440p si RAM media
+            PlaybackTier.HIGH     -> null               // Sin límite si hay RAM suficiente
+        }
+    }
+
+    /**
+     * Indica si el Audio Offload debe activarse.
+     * En dispositivos con poca RAM, el offload puede presionar aún más el sistema.
+     */
+    fun shouldEnableAudioOffload(): Boolean {
+        val tier = getPlaybackTier()
+        return tier == PlaybackTier.HIGH || tier == PlaybackTier.MEDIUM
     }
     
     /**

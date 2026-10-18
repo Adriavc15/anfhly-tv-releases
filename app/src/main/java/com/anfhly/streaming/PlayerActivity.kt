@@ -1368,14 +1368,12 @@ class PlayerActivity : AppCompatActivity() {
         val codecSelector = createCodecSelectorWithTranslation()
         val renderersFactory = createDolbyRenderersFactory(codecSelector)
             
-        // Configurar LoadControl optimizado para 1080p, 2K y 4K
-        val allocator = DefaultAllocator(true, C.DEFAULT_BUFFER_SEGMENT_SIZE)
-        val loadControl = DefaultLoadControl.Builder()
-            .setAllocator(allocator)
-            .setBufferDurationsMs(15000, 60000, 2500, 5000)
-            .setTargetBufferBytes(64 * 1024 * 1024)
-            .setPrioritizeTimeOverSizeThresholds(true)
-            .build()
+        // LoadControl adaptativo según RAM libre real del dispositivo en este momento
+        val loadControl = deviceCapabilities.createOptimizedLoadControl()
+        val playbackTier = deviceCapabilities.getPlaybackTier()
+        val adaptiveMaxSize = deviceCapabilities.getAdaptiveMaxVideoSize()
+        val useAudioOffload = deviceCapabilities.shouldEnableAudioOffload()
+        Log.d(tag, "initializePlayerInstance: tier=$playbackTier, adaptiveMaxSize=$adaptiveMaxSize, audioOffload=$useAudioOffload")
             
         // Configurar TrackSelector inicial con soporte para audio multicanal y espacial
         val parametersBuilder = androidx.media3.exoplayer.trackselection.DefaultTrackSelector.ParametersBuilder(this)
@@ -1383,7 +1381,12 @@ class PlayerActivity : AppCompatActivity() {
             .setPreferredTextLanguage(preferredSubtitleLanguage)
             .setAudioOffloadPreferences(
                 TrackSelectionParameters.AudioOffloadPreferences.Builder()
-                    .setAudioOffloadMode(TrackSelectionParameters.AudioOffloadPreferences.AUDIO_OFFLOAD_MODE_ENABLED)
+                    .setAudioOffloadMode(
+                        if (useAudioOffload)
+                            TrackSelectionParameters.AudioOffloadPreferences.AUDIO_OFFLOAD_MODE_ENABLED
+                        else
+                            TrackSelectionParameters.AudioOffloadPreferences.AUDIO_OFFLOAD_MODE_DISABLED
+                    )
                     .setIsGaplessSupportRequired(false)
                     .build()
             )
@@ -1393,17 +1396,31 @@ class PlayerActivity : AppCompatActivity() {
             parametersBuilder.setMinVideoSize(explicitVideoWidth, explicitVideoHeight)
             parametersBuilder.setMaxVideoSize(explicitVideoWidth, explicitVideoHeight)
             Log.d(tag, "initializePlayerInstance: explicit size applied = ${explicitVideoWidth}x${explicitVideoHeight}")
-        } else if (preferredQuality != "auto") {
-            val maxVideoSize = when (preferredQuality) {
+        } else {
+            // Aplicar límite de resolución del usuario, pero nunca superar el techo adaptativo del dispositivo
+            val userMaxSize = when (preferredQuality) {
                 "4k", "2160p" -> Pair(3840, 2160)
                 "2k", "1440p" -> Pair(2560, 1440)
-                "1080p" -> Pair(1920, 1080)
-                "720p" -> Pair(1280, 720)
-                "480p" -> Pair(854, 480)
-                "360p" -> Pair(640, 360)
-                else -> Pair(1920, 1080)
+                "1080p"       -> Pair(1920, 1080)
+                "720p"        -> Pair(1280, 720)
+                "480p"        -> Pair(854, 480)
+                "360p"        -> Pair(640, 360)
+                else          -> null // auto: sin límite por usuario
             }
-            parametersBuilder.setMaxVideoSize(maxVideoSize.first, maxVideoSize.second)
+            // El techo efectivo es el mínimo entre lo que pide el usuario y lo que el hardware puede
+            val effectiveMax = when {
+                userMaxSize == null && adaptiveMaxSize == null -> null
+                userMaxSize == null -> adaptiveMaxSize
+                adaptiveMaxSize == null -> userMaxSize
+                else -> Pair(
+                    minOf(userMaxSize.first, adaptiveMaxSize.first),
+                    minOf(userMaxSize.second, adaptiveMaxSize.second)
+                )
+            }
+            if (effectiveMax != null) {
+                parametersBuilder.setMaxVideoSize(effectiveMax.first, effectiveMax.second)
+                Log.d(tag, "initializePlayerInstance: effectiveMaxSize=${effectiveMax.first}x${effectiveMax.second} (user=${userMaxSize}, adaptive=${adaptiveMaxSize})")
+            }
         }
         
         val trackSelector = androidx.media3.exoplayer.trackselection.DefaultTrackSelector(this, parametersBuilder.build())
