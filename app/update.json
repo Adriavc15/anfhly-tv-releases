@@ -1,7 +1,7 @@
 {
-  "versionCode": 7,
-  "versionName": "1.0.6",
+  "versionCode": 8,
+  "versionName": "1.0.7",
   "buildDate": "2026-10-18",
   "apkUrl": "https://github.com/Adriavc15/anfhly-tv-releases/releases/latest/download/Anfhly.Tv.apk",
-  "changelog": "- Corrección de lentitud y congelamiento en Ok.ru en todas las resoluciones\n- Detección precisa de HLS nativo (HlsMediaSource) para enlaces ondemandHls\n- Eliminación de throttling de CDN al limpiar cabeceras de streaming\n- Aumento de tamaño de buffers de reproducción para evitar rebuffering continuo\n- Protección de hardware activa al seleccionar calidades manuales en el reproductor"
+  "changelog": "- Desbloqueo de reproducción nativa en 4K y 2K para chips con VPU acelerada por hardware\n- Eliminación de techos artificiales de RAM en decodificación de video por hardware (zero-copy)\n- Carga directa y sin restricciones de 4K, 2K, 1080p y demás calidades desde el menú del reproductor"
 }

@@ -109,12 +109,7 @@ class DeviceCapabilities(private val context: Context) {
      * Detecta la resolución máxima de video soportada
      */
     private fun detectMaxVideoResolution(): Pair<Int, Int> {
-        return when (performanceLevel) {
-            PerformanceLevel.PREMIUM -> Pair(3840, 2160)   // 4K
-            PerformanceLevel.HIGH -> Pair(2560, 1440)      // 2K
-            PerformanceLevel.MEDIUM -> Pair(1920, 1080)    // Full HD
-            PerformanceLevel.LOW -> Pair(1280, 720)       // HD
-        }
+        return getHardwareMaxVideoSize()
     }
     
     /**
@@ -255,30 +250,31 @@ class DeviceCapabilities(private val context: Context) {
      * Obtiene el perfil de calidad óptimo para el dispositivo
      */
     fun getOptimalQualityProfile(): QualityProfile {
-        return when (performanceLevel) {
-            PerformanceLevel.PREMIUM -> QualityProfile(
+        val hwSize = getHardwareMaxVideoSize()
+        return when {
+            hwSize.second >= 2160 -> QualityProfile(
                 maxHeight = 2160,
-                maxBitrate = 20_000_000, // 20 Mbps
+                maxBitrate = 25_000_000,
                 preferredCodec = "hevc",
-                name = "4K Premium"
+                name = "4K Ultra HD"
             )
-            PerformanceLevel.HIGH -> QualityProfile(
+            hwSize.second >= 1440 -> QualityProfile(
                 maxHeight = 1440,
-                maxBitrate = 12_000_000, // 12 Mbps
-                preferredCodec = "h264",
-                name = "2K Alta"
+                maxBitrate = 14_000_000,
+                preferredCodec = "hevc",
+                name = "2K Quad HD"
             )
-            PerformanceLevel.MEDIUM -> QualityProfile(
+            hwSize.second >= 1080 -> QualityProfile(
                 maxHeight = 1080,
-                maxBitrate = 8_000_000, // 8 Mbps
+                maxBitrate = 8_000_000,
                 preferredCodec = "h264",
-                name = "HD Estándar"
+                name = "Full HD"
             )
-            PerformanceLevel.LOW -> QualityProfile(
+            else -> QualityProfile(
                 maxHeight = 720,
-                maxBitrate = 4_000_000, // 4 Mbps
+                maxBitrate = 4_000_000,
                 preferredCodec = "h264",
-                name = "HD Básica"
+                name = "HD"
             )
         }
     }
@@ -476,24 +472,14 @@ class DeviceCapabilities(private val context: Context) {
      * Retorna null solo si ambos techos son ilimitados (RAM alta + 4K confirmado).
      */
     fun getAdaptiveMaxVideoSize(): Pair<Int, Int>? {
-        // Techo por RAM
-        val ramCeiling = when (getPlaybackTier()) {
-            PlaybackTier.CRITICAL -> Pair(1280, 720)
-            PlaybackTier.LOW      -> Pair(1920, 1080)
-            PlaybackTier.MEDIUM   -> Pair(2560, 1440)
-            PlaybackTier.HIGH     -> null // Sin límite de RAM
-        }
-
-        // Techo por hardware (siempre comprobado)
+        // En Android TV, la decodificación de video se realiza directamente en el coprocesador de video (VPU)
+        // por hardware (zero-copy), por lo que la resolución máxima real la determina el chip.
         val hwCeiling = getHardwareMaxVideoSize()
 
-        // Si el hardware soporta 4K y la RAM también, no imponemos límite
-        if (ramCeiling == null && hwCeiling == Pair(3840, 2160)) return null
+        // Si el hardware soporta 4K, no se impone ningún límite artificial
+        if (hwCeiling == Pair(3840, 2160)) return null
 
-        // En cualquier otro caso, el techo es el menor de los dos
-        val effectiveW = if (ramCeiling != null) minOf(ramCeiling.first, hwCeiling.first) else hwCeiling.first
-        val effectiveH = if (ramCeiling != null) minOf(ramCeiling.second, hwCeiling.second) else hwCeiling.second
-        return Pair(effectiveW, effectiveH)
+        return hwCeiling
     }
 
     /**
