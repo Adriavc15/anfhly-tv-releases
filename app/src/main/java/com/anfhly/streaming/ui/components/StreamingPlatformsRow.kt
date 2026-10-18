@@ -175,14 +175,14 @@ private fun PlatformButton(
 
     Surface(
         onClick = onClick,
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.25f),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.15f),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = Color.Transparent,
             focusedContainerColor = Color.Transparent
         ),
         modifier = modifier
-            .width(100.dp)
-            .height(65.dp)
+            .width(140.dp)
+            .height(90.dp)
             .onFocusChanged { isFocused = it.isFocused }
     ) {
         Box(
