@@ -1,7 +1,7 @@
 {
-  "versionCode": 10,
-  "versionName": "1.0.9",
+  "versionCode": 11,
+  "versionName": "1.1.0",
   "buildDate": "2026-10-18",
   "apkUrl": "https://github.com/Adriavc15/anfhly-tv-releases/releases/latest/download/Anfhly.Tv.apk",
-  "changelog": "- Arranque automÃ¡tico directo en 4K (2160p) para televisores y dispositivos con soporte de hardware 4K\n- SelecciÃ³n inteligente de la mÃ¡xima calidad nativa disponible sin requerir ajuste manual previo\n- BÃºsqueda en cascada de pistas de video (4K -> 2K -> 1080p) para garantizar la mayor resoluciÃ³n posible en cada contenido"
+  "changelog": "- Fila 'Continuar viendo' en Inicio con miniaturas 16:9 y barra de progreso roja en tiempo real\n- Guardado automÃ¡tico continuo en segundo plano cada 15 segundos y al pausar o salir\n- ReanudaciÃ³n instantÃ¡nea en el segundo exacto tanto en pelÃ­culas como en episodios de series\n- NavegaciÃ³n fluida por control remoto (D-Pad) y actualizaciÃ³n automÃ¡tica al regresar de la reproducciÃ³n"
 }
