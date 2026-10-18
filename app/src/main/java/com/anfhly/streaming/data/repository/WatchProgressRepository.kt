@@ -14,8 +14,12 @@ import kotlinx.serialization.json.Json
 data class WatchProgress(
     val contentId: String,
     val contentType: String, // "movie" or "series"
+    val title: String? = null,
+    val posterUrl: String? = null,
+    val backdropUrl: String? = null,
     val seasonNumber: Int? = null,
     val episodeNumber: Int? = null,
+    val episodeTitle: String? = null,
     val positionMs: Long,
     val durationMs: Long,
     val lastWatched: Long = System.currentTimeMillis()
@@ -34,16 +38,27 @@ class WatchProgressRepository(context: Context) {
     /**
      * Save watch progress for a movie
      */
-    suspend fun saveMovieProgress(movieId: String, positionMs: Long, durationMs: Long) = withContext(Dispatchers.IO) {
+    suspend fun saveMovieProgress(
+        movieId: String,
+        positionMs: Long,
+        durationMs: Long,
+        title: String? = null,
+        posterUrl: String? = null,
+        backdropUrl: String? = null
+    ) = withContext(Dispatchers.IO) {
         try {
             val progress = WatchProgress(
                 contentId = movieId,
                 contentType = "movie",
+                title = title,
+                posterUrl = posterUrl,
+                backdropUrl = backdropUrl,
                 positionMs = positionMs,
-                durationMs = durationMs
+                durationMs = durationMs,
+                lastWatched = System.currentTimeMillis()
             )
             saveProgress(progress)
-            Log.d(TAG, "Saved movie progress: $movieId at ${positionMs}ms / ${durationMs}ms")
+            Log.d(TAG, "Saved movie progress: $movieId ($title) at ${positionMs}ms / ${durationMs}ms")
         } catch (e: Exception) {
             Log.e(TAG, "Error saving movie progress", e)
         }
@@ -57,19 +72,28 @@ class WatchProgressRepository(context: Context) {
         seasonNumber: Int,
         episodeNumber: Int,
         positionMs: Long,
-        durationMs: Long
+        durationMs: Long,
+        title: String? = null,
+        posterUrl: String? = null,
+        backdropUrl: String? = null,
+        episodeTitle: String? = null
     ) = withContext(Dispatchers.IO) {
         try {
             val progress = WatchProgress(
                 contentId = seriesId,
                 contentType = "series",
+                title = title,
+                posterUrl = posterUrl,
+                backdropUrl = backdropUrl,
                 seasonNumber = seasonNumber,
                 episodeNumber = episodeNumber,
+                episodeTitle = episodeTitle,
                 positionMs = positionMs,
-                durationMs = durationMs
+                durationMs = durationMs,
+                lastWatched = System.currentTimeMillis()
             )
             saveProgress(progress)
-            Log.d(TAG, "Saved episode progress: $seriesId S${seasonNumber}E${episodeNumber} at ${positionMs}ms / ${durationMs}ms")
+            Log.d(TAG, "Saved episode progress: $seriesId S${seasonNumber}E${episodeNumber} ($title) at ${positionMs}ms / ${durationMs}ms")
         } catch (e: Exception) {
             Log.e(TAG, "Error saving episode progress", e)
         }
@@ -148,6 +172,21 @@ class WatchProgressRepository(context: Context) {
     suspend fun clearAllProgress() = withContext(Dispatchers.IO) {
         prefs.edit().clear().apply()
         Log.d(TAG, "Cleared all watch progress")
+    }
+
+    /**
+     * Get continue watching list sorted by lastWatched descending.
+     * Filters out finished content (>95%) and very short previews (<15s).
+     */
+    suspend fun getContinueWatchingList(): List<WatchProgress> = withContext(Dispatchers.IO) {
+        try {
+            getAllProgress()
+                .filter { it.positionMs >= 15_000L && it.durationMs > 0 && it.positionMs < (it.durationMs * 0.95) }
+                .sortedByDescending { it.lastWatched }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting continue watching list", e)
+            emptyList()
+        }
     }
     
     private fun saveProgress(progress: WatchProgress) {

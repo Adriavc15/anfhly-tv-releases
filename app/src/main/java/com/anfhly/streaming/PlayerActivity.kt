@@ -28,6 +28,7 @@ import android.content.SharedPreferences
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.isActive
 import java.io.File
 import java.io.FileWriter
 import java.text.SimpleDateFormat
@@ -1479,6 +1480,16 @@ class PlayerActivity : AppCompatActivity() {
                         Log.d(tag, "onRenderedFirstFrame")
                     }
                     
+                    override fun onIsPlayingChanged(isPlaying: Boolean) {
+                        super.onIsPlayingChanged(isPlaying)
+                        if (isPlaying) {
+                            startPeriodicProgressSaving()
+                        } else {
+                            stopPeriodicProgressSaving()
+                            saveVideoPosition()
+                        }
+                    }
+                    
                     override fun onPlaybackStateChanged(state: Int) {
                         Log.d(tag, "Playback state: $state")
                         updatePlayPauseButton()
@@ -2387,26 +2398,49 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
     
+    private var periodicProgressJob: kotlinx.coroutines.Job? = null
+
+    private fun startPeriodicProgressSaving() {
+        if (periodicProgressJob?.isActive == true) return
+        periodicProgressJob = lifecycleScope.launch(Dispatchers.Main) {
+            while (isActive) {
+                kotlinx.coroutines.delay(15_000L) // Auto-guardar cada 15 segundos
+                if (exoPlayer?.isPlaying == true) {
+                    saveVideoPosition()
+                }
+            }
+        }
+    }
+
+    private fun stopPeriodicProgressSaving() {
+        periodicProgressJob?.cancel()
+        periodicProgressJob = null
+    }
+
     override fun onPause() {
         super.onPause()
-        // Guardar posición (saveVideoPosition ya usa runBlocking internamente)
+        stopPeriodicProgressSaving()
         saveVideoPosition()
         exoPlayer?.pause()
     }
 
     override fun onStop() {
         super.onStop()
-        // Doble seguridad: guardar también en onStop
+        stopPeriodicProgressSaving()
         saveVideoPosition()
     }
 
     override fun onResume() {
         super.onResume()
         exoPlayer?.play()
+        if (exoPlayer?.isPlaying == true) {
+            startPeriodicProgressSaving()
+        }
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        stopPeriodicProgressSaving()
         exoPlayer?.release()
         exoPlayer = null
     }
@@ -3046,21 +3080,46 @@ class PlayerActivity : AppCompatActivity() {
                 val position = player.currentPosition
                 val duration = player.duration
                 Log.d(tag, "Saving position: ${position}ms / ${duration}ms (contentId=$contentId, type=$contentType)")
-                // Solo guardar si estamos entre el 5% y el 95% del video
-                if (position > duration * 0.05 && position < duration * 0.95) {
+                // Guardar a partir de 15 segundos y hasta el 95% del video
+                val minThreshold = 15_000L
+                if (position >= minThreshold && position < duration * 0.95) {
+                    val title = when (contentType) {
+                        "series" -> currentSeries?.title ?: currentContent?.title
+                        "movie"  -> currentMovie?.title ?: currentContent?.title
+                        else     -> currentContent?.title
+                    }
+                    val posterUrl = currentContent?.posterUrl ?: currentMovie?.posterUrl ?: currentSeries?.posterUrl
+                    val backdropUrl = currentContent?.backdropUrl ?: currentMovie?.backdropUrl ?: currentSeries?.backdropUrl
+                    val epTitle = currentEpisode?.name
+
                     // Guardar con WatchProgressRepository usando runBlocking para asegurar que se guarde
                     runBlocking {
                         try {
                             when {
                                 contentType == "series" && seasonNumber != null && episodeNumber != null -> {
                                     watchProgressRepository.saveEpisodeProgress(
-                                        contentId, seasonNumber!!, episodeNumber!!, position, duration
+                                        seriesId = contentId,
+                                        seasonNumber = seasonNumber!!,
+                                        episodeNumber = episodeNumber!!,
+                                        positionMs = position,
+                                        durationMs = duration,
+                                        title = title,
+                                        posterUrl = posterUrl,
+                                        backdropUrl = backdropUrl,
+                                        episodeTitle = epTitle
                                     )
-                                    Log.d(tag, "Episode progress saved successfully")
+                                    Log.d(tag, "Episode progress saved successfully: $title S${seasonNumber}E${episodeNumber}")
                                 }
                                 contentType == "movie" -> {
-                                    watchProgressRepository.saveMovieProgress(contentId, position, duration)
-                                    Log.d(tag, "Movie progress saved successfully")
+                                    watchProgressRepository.saveMovieProgress(
+                                        movieId = contentId,
+                                        positionMs = position,
+                                        durationMs = duration,
+                                        title = title,
+                                        posterUrl = posterUrl,
+                                        backdropUrl = backdropUrl
+                                    )
+                                    Log.d(tag, "Movie progress saved successfully: $title")
                                 }
                                 else -> {
                                     Log.w(tag, "Unknown content type: $contentType")

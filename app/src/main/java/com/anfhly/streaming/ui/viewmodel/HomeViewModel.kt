@@ -11,6 +11,8 @@ import com.anfhly.streaming.data.model.Result
 import com.anfhly.streaming.data.model.WatchlistItem
 import com.anfhly.streaming.data.repository.ContentRepository
 import com.anfhly.streaming.data.repository.WatchlistRepository
+import com.anfhly.streaming.data.repository.WatchProgress
+import com.anfhly.streaming.data.repository.WatchProgressRepository
 import com.anfhly.streaming.utils.MemoryUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -76,6 +78,29 @@ class HomeViewModel(
     private val _channelsCategories = MutableStateFlow<List<ContentCategory>>(emptyList())
     val channelsCategories: StateFlow<List<ContentCategory>> = _channelsCategories.asStateFlow()
 
+    private var watchProgressRepository: WatchProgressRepository? = null
+
+    private val _continueWatching = MutableStateFlow<List<WatchProgress>>(emptyList())
+    val continueWatching: StateFlow<List<WatchProgress>> = _continueWatching.asStateFlow()
+
+    fun initWatchProgressRepository(context: android.content.Context) {
+        if (watchProgressRepository == null) {
+            watchProgressRepository = WatchProgressRepository(context.applicationContext)
+        }
+        loadContinueWatching()
+    }
+
+    fun loadContinueWatching() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val list = watchProgressRepository?.getContinueWatchingList() ?: emptyList()
+                _continueWatching.value = list
+                android.util.Log.d("HomeViewModel", "Loaded ${list.size} continue watching items")
+            } catch (e: Exception) {
+                android.util.Log.e("HomeViewModel", "Error loading continue watching", e)
+            }
+        }
+    }
 
     init {
         // loadContent() is now called explicitly to avoid lagging the splash animation
@@ -263,6 +288,8 @@ class HomeViewModel(
 
                 android.util.Log.d("HomeViewModel", "State check - hasError: $hasError, hasData: $hasData")
                 android.util.Log.d("HomeViewModel", "Movies: ${_movies.value.size}, Series: ${_series.value.size}, Channels: ${_channels.value.size}")
+
+                loadContinueWatching()
 
                 _uiState.value = when {
                     hasError && !hasData -> HomeUiState.Error("Failed to load content")

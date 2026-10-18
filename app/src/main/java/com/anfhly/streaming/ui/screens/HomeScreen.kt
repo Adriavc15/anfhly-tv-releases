@@ -543,6 +543,292 @@ fun ContentRowGamingStyle(
     }
 }
 
+/**
+ * Card para la fila de Continuar Viendo con barra de progreso y diseño estilo Netflix
+ */
+@OptIn(ExperimentalTvMaterial3Api::class, ExperimentalTvFoundationApi::class)
+@Composable
+fun ContinueWatchingCard(
+    progress: com.anfhly.streaming.data.repository.WatchProgress,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    onFocusChange: (Boolean) -> Unit = {},
+    cardFocusRequester: FocusRequester? = null
+) {
+    var isFocused by remember { mutableStateOf(false) }
+    val defaultFocusRequester = remember { FocusRequester() }
+    val focusRequester = cardFocusRequester ?: defaultFocusRequester
+    val interactionSource = remember { MutableInteractionSource() }
+    val isHovered by interactionSource.collectIsHoveredAsState()
+
+    LaunchedEffect(isHovered) {
+        if (isHovered) {
+            try { focusRequester.requestFocus() } catch (_: Exception) {}
+        }
+    }
+
+    LaunchedEffect(isFocused) {
+        onFocusChange(isFocused)
+    }
+
+    val animatedPadding by animateDpAsState(
+        targetValue = if (isFocused) 0.dp else 4.dp,
+        animationSpec = tween(150),
+        label = "cwPadding"
+    )
+
+    Surface(
+        onClick = onClick,
+        modifier = modifier
+            .width(280.dp)
+            .height(165.dp)
+            .focusRequester(focusRequester)
+            .hoverable(interactionSource)
+            .onFocusChanged { isFocused = it.hasFocus }
+            .pointerInput(onClick) {
+                detectTapGestures { onClick() }
+            },
+        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.05f),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = Color(0xFF1E1E2E),
+            focusedContainerColor = Color(0xFF2E2E42)
+        )
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(animatedPadding)
+                .clip(RoundedCornerShape(10.dp))
+                .then(
+                    if (isFocused) Modifier.border(2.5.dp, Color.White, RoundedCornerShape(10.dp))
+                    else Modifier
+                )
+        ) {
+            // Imagen de fondo (backdrop o poster)
+            val imageUrl = progress.backdropUrl ?: progress.posterUrl
+            if (!imageUrl.isNullOrBlank()) {
+                SubcomposeAsyncImage(
+                    model = coil.request.ImageRequest.Builder(LocalContext.current)
+                        .data(imageUrl)
+                        .memoryCachePolicy(CachePolicy.ENABLED)
+                        .diskCachePolicy(CachePolicy.ENABLED)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = progress.title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                    loading = {
+                        Box(modifier = Modifier.fillMaxSize().background(Color(0xFF2A2A3A)))
+                    },
+                    error = {
+                        Box(modifier = Modifier.fillMaxSize().background(Color(0xFF1F1F2F)))
+                    }
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Brush.linearGradient(listOf(Color(0xFF1F1F2F), Color(0xFF11111B))))
+                )
+            }
+
+            // Gradiente oscuro inferior para texto
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                Color(0x66000000),
+                                Color(0xEE0A0A10)
+                            )
+                        )
+                    )
+            )
+
+            // Icono play en el centro
+            Box(
+                modifier = Modifier
+                    .size(42.dp)
+                    .align(Alignment.Center)
+                    .background(
+                        color = if (isFocused) Color(0xFFE50914) else Color.Black.copy(alpha = 0.6f),
+                        shape = CircleShape
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.PlayArrow,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(26.dp)
+                )
+            }
+
+            // Textos en el pie
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+            ) {
+                Text(
+                    text = progress.title ?: "Continuar viendo",
+                    color = Color.White,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                val subText = if (progress.contentType == "series" && progress.seasonNumber != null && progress.episodeNumber != null) {
+                    val epName = if (!progress.episodeTitle.isNullOrBlank()) " - ${progress.episodeTitle}" else ""
+                    "T${progress.seasonNumber}:E${progress.episodeNumber}$epName"
+                } else {
+                    val remainingMs = maxOf(0L, progress.durationMs - progress.positionMs)
+                    val mins = remainingMs / 60000
+                    "${mins}m restantes"
+                }
+
+                Text(
+                    text = subText,
+                    color = Color.White.copy(alpha = 0.75f),
+                    fontSize = 11.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            // Barra de progreso roja al pie
+            val progressFraction = if (progress.durationMs > 0) {
+                (progress.positionMs.toFloat() / progress.durationMs.toFloat()).coerceIn(0.02f, 0.98f)
+            } else 0f
+
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(4.dp)
+                    .background(Color.White.copy(alpha = 0.25f))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .fillMaxWidth(fraction = progressFraction)
+                        .background(Color(0xFFE50914)) // Rojo Netflix
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Fila horizontal para Continuar Viendo
+ */
+@OptIn(ExperimentalTvFoundationApi::class)
+@Composable
+fun ContinueWatchingRow(
+    items: List<com.anfhly.streaming.data.repository.WatchProgress>,
+    allMovies: List<Content.Movie>,
+    allSeries: List<Content.Series>,
+    onContentSelected: (Content) -> Unit,
+    onPlayMovie: (Content.Movie, Long) -> Unit,
+    onContentFocused: (Content?) -> Unit = {},
+    firstCardFocusRequester: FocusRequester? = null,
+    onNavigateUp: (() -> Unit)? = null,
+    modifier: Modifier = Modifier
+) {
+    if (items.isEmpty()) return
+    val listState = rememberTvLazyListState()
+    val context = LocalContext.current
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp)
+    ) {
+        Text(
+            text = "Continuar viendo",
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.White.copy(alpha = 0.9f),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 2.dp)
+        )
+
+        TvLazyRow(
+            state = listState,
+            contentPadding = PaddingValues(horizontal = 24.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(20.dp),
+            pivotOffsets = PivotOffsets(0.15f, 0.15f),
+            modifier = Modifier
+                .fillMaxWidth()
+                .onPreviewKeyEvent { event ->
+                    if (event.type == androidx.compose.ui.input.key.KeyEventType.KeyDown &&
+                        event.key == androidx.compose.ui.input.key.Key.DirectionUp &&
+                        onNavigateUp != null) {
+                        onNavigateUp()
+                        true
+                    } else {
+                        false
+                    }
+                }
+        ) {
+            itemsIndexed(items, key = { _, item -> "${item.contentType}_${item.contentId}_${item.seasonNumber}_${item.episodeNumber}" }) { index, item ->
+                ContinueWatchingCard(
+                    progress = item,
+                    onClick = {
+                        if (item.contentType == "movie") {
+                            val movie = allMovies.find { it.id == item.contentId }
+                                ?: Content.Movie(
+                                    id = item.contentId,
+                                    title = item.title ?: "",
+                                    posterUrl = item.posterUrl,
+                                    backdropUrl = item.backdropUrl
+                                )
+                            onPlayMovie(movie, item.positionMs)
+                        } else {
+                            val series = allSeries.find { it.id == item.contentId }
+                                ?: Content.Series(
+                                    id = item.contentId,
+                                    title = item.title ?: "",
+                                    posterUrl = item.posterUrl,
+                                    backdropUrl = item.backdropUrl
+                                )
+                            val targetEpisode = series.seasons
+                                .find { it.seasonNumber == item.seasonNumber }
+                                ?.episodes
+                                ?.find { it.episodeNumber == item.episodeNumber }
+
+                            if (targetEpisode != null) {
+                                (context as? android.app.Activity)?.let { act ->
+                                    com.anfhly.streaming.PlayerActivity.start(act, series, targetEpisode, item.positionMs)
+                                } ?: onContentSelected(series)
+                            } else {
+                                onContentSelected(series)
+                            }
+                        }
+                    },
+                    onFocusChange = { isFocused ->
+                        if (isFocused) {
+                            val content = if (item.contentType == "movie") {
+                                allMovies.find { it.id == item.contentId }
+                            } else {
+                                allSeries.find { it.id == item.contentId }
+                            }
+                            onContentFocused(content)
+                        }
+                    },
+                    cardFocusRequester = if (index == 0) firstCardFocusRequester else null
+                )
+            }
+        }
+    }
+}
+
 // Iconos personalizados para los tabs
 val HomeIcon: ImageVector
     get() = ImageVector.Builder(
@@ -2032,6 +2318,7 @@ fun HomeScreen(
     val series by viewModel.series.collectAsStateWithLifecycle()
     val channels by viewModel.channels.collectAsStateWithLifecycle()
     val channelsCategories by viewModel.channelsCategories.collectAsStateWithLifecycle()
+    val continueWatching by viewModel.continueWatching.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
     val isSidebarOnly = com.anfhly.streaming.utils.UserPreferences.isSidebarOnly(context)
@@ -2048,8 +2335,29 @@ fun HomeScreen(
     val listState = remember { androidx.tv.foundation.lazy.list.TvLazyListState() }
     val cardsFocusRequester = remember { FocusRequester() }
 
+    LaunchedEffect(Unit) {
+        viewModel.initWatchProgressRepository(context)
+        viewModel.loadContinueWatching()
+    }
+
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                viewModel.loadContinueWatching()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
     // Auto-rotate carousel cada 10 segundos
     LaunchedEffect(activeInterface) {
+        if (activeInterface == InterfaceMode.HOME) {
+            viewModel.loadContinueWatching()
+        }
         while (true) {
             delay(10000)
             viewModel.goToNextFeatured()
@@ -2716,9 +3024,46 @@ fun HomeScreen(
                         // CONTENIDO SEGÚN PESTAÑA ACTIVA
                         when (activeInterface) {
                             InterfaceMode.HOME -> {
+                                if (continueWatching.isNotEmpty()) {
+                                    item(key = "continue_watching_section") {
+                                        ContinueWatchingRow(
+                                            items = continueWatching,
+                                            allMovies = movies,
+                                            allSeries = series,
+                                            onContentSelected = onContentSelected,
+                                            onPlayMovie = { movie, resumePos ->
+                                                (context as? android.app.Activity)?.let { act ->
+                                                    com.anfhly.streaming.PlayerActivity.start(
+                                                        activity = act,
+                                                        content = movie,
+                                                        episode = null,
+                                                        resumePositionMs = resumePos
+                                                    )
+                                                }
+                                            },
+                                            onContentFocused = { content ->
+                                                focusedCardContent = content
+                                            },
+                                            firstCardFocusRequester = firstCardFocusRequester,
+                                            onNavigateUp = {
+                                                navigateUpFromFirstRow()
+                                            },
+                                            modifier = Modifier
+                                                .alpha(cardsAlpha)
+                                                .onFocusChanged {
+                                                    if (it.hasFocus) {
+                                                        focusedRowIndex = 0
+                                                        headerHasFocus = false
+                                                    }
+                                                }
+                                        )
+                                    }
+                                }
+
                                 items(categories.size) { index ->
                                     val category = categories[index]
-                                    val isFirstRow = index == 0
+                                    val isFirstRow = continueWatching.isEmpty() && index == 0
+                                    val rowIndex = if (continueWatching.isNotEmpty()) index + 1 else index
 
                                     ContentRowGamingStyle(
                                         title = category.title,
@@ -2727,9 +3072,9 @@ fun HomeScreen(
                                         onContentFocused = { content ->
                                             focusedCardContent = content
                                         },
-                                        isFocused = focusedRowIndex == index,
+                                        isFocused = focusedRowIndex == rowIndex,
                                         onFocusChange = { 
-                                            focusedRowIndex = index
+                                            focusedRowIndex = rowIndex
                                             headerHasFocus = false
                                         },
                                         showTitle = true,
@@ -2740,14 +3085,14 @@ fun HomeScreen(
                                             .alpha(cardsAlpha)
                                             .onFocusChanged {
                                                 if (it.hasFocus) {
-                                                    focusedRowIndex = index
+                                                    focusedRowIndex = rowIndex
                                                     headerHasFocus = false
                                                 }
                                             }
                                             .onPreviewKeyEvent { event ->
                                                 if (event.type == androidx.compose.ui.input.key.KeyEventType.KeyDown && 
                                                     event.key == androidx.compose.ui.input.key.Key.DirectionUp && 
-                                                    focusedRowIndex == 0) {
+                                                    rowIndex == 0) {
                                                     // Navegar a plataformas / hero / header desde la primera fila
                                                     navigateUpFromFirstRow()
                                                     true
