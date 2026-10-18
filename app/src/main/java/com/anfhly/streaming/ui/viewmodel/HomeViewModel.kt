@@ -87,15 +87,67 @@ class HomeViewModel(
         if (watchProgressRepository == null) {
             watchProgressRepository = WatchProgressRepository(context.applicationContext)
         }
-        loadContinueWatching()
     }
 
     fun loadContinueWatching() {
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val list = watchProgressRepository?.getContinueWatchingList() ?: emptyList()
-                _continueWatching.value = list
-                android.util.Log.d("HomeViewModel", "Loaded ${list.size} continue watching items")
+                
+                // Actualizar datos guardados con URLs de películas/series si faltan
+                val movies = _movies.value
+                val series = _series.value
+                
+                val updatedList = list.map { progress ->
+                    if (progress.posterUrl.isNullOrBlank() || progress.backdropUrl.isNullOrBlank()) {
+                        val updated = if (progress.contentType == "movie") {
+                            val movie = movies.find { it.id == progress.contentId }
+                            progress.copy(
+                                posterUrl = progress.posterUrl ?: movie?.posterUrl,
+                                backdropUrl = progress.backdropUrl ?: movie?.backdropUrl,
+                                title = progress.title ?: movie?.title
+                            )
+                        } else {
+                            val serie = series.find { it.id == progress.contentId }
+                            progress.copy(
+                                posterUrl = progress.posterUrl ?: serie?.posterUrl,
+                                backdropUrl = progress.backdropUrl ?: serie?.backdropUrl,
+                                title = progress.title ?: serie?.title
+                            )
+                        }
+                        // Guardar el dato actualizado
+                        watchProgressRepository?.let { repo ->
+                            if (progress.contentType == "movie") {
+                                repo.saveMovieProgress(
+                                    movieId = updated.contentId,
+                                    positionMs = updated.positionMs,
+                                    durationMs = updated.durationMs,
+                                    title = updated.title,
+                                    posterUrl = updated.posterUrl,
+                                    backdropUrl = updated.backdropUrl
+                                )
+                            } else {
+                                repo.saveEpisodeProgress(
+                                    seriesId = updated.contentId,
+                                    seasonNumber = updated.seasonNumber ?: 0,
+                                    episodeNumber = updated.episodeNumber ?: 0,
+                                    positionMs = updated.positionMs,
+                                    durationMs = updated.durationMs,
+                                    title = updated.title,
+                                    posterUrl = updated.posterUrl,
+                                    backdropUrl = updated.backdropUrl,
+                                    episodeTitle = updated.episodeTitle
+                                )
+                            }
+                        }
+                        updated
+                    } else {
+                        progress
+                    }
+                }
+                
+                _continueWatching.value = updatedList
+                android.util.Log.d("HomeViewModel", "Loaded ${updatedList.size} continue watching items")
             } catch (e: Exception) {
                 android.util.Log.e("HomeViewModel", "Error loading continue watching", e)
             }

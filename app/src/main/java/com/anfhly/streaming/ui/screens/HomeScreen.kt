@@ -778,8 +778,29 @@ fun ContinueWatchingRow(
                 }
         ) {
             itemsIndexed(items, key = { _, item -> "${item.contentType}_${item.contentId}_${item.seasonNumber}_${item.episodeNumber}" }) { index, item ->
+                // Completar URLs de imágenes si faltan (para datos guardados antes de la actualización)
+                val enhancedProgress = if (item.posterUrl.isNullOrBlank() || item.backdropUrl.isNullOrBlank()) {
+                    if (item.contentType == "movie") {
+                        val movie = allMovies.find { it.id == item.contentId }
+                        item.copy(
+                            posterUrl = item.posterUrl ?: movie?.posterUrl,
+                            backdropUrl = item.backdropUrl ?: movie?.backdropUrl,
+                            title = item.title ?: movie?.title
+                        )
+                    } else {
+                        val series = allSeries.find { it.id == item.contentId }
+                        item.copy(
+                            posterUrl = item.posterUrl ?: series?.posterUrl,
+                            backdropUrl = item.backdropUrl ?: series?.backdropUrl,
+                            title = item.title ?: series?.title
+                        )
+                    }
+                } else {
+                    item
+                }
+
                 ContinueWatchingCard(
-                    progress = item,
+                    progress = enhancedProgress,
                     onClick = {
                         if (item.contentType == "movie") {
                             val movie = allMovies.find { it.id == item.contentId }
@@ -2337,7 +2358,13 @@ fun HomeScreen(
 
     LaunchedEffect(Unit) {
         viewModel.initWatchProgressRepository(context)
-        viewModel.loadContinueWatching()
+    }
+
+    // Cargar continue watching cuando películas y series estén disponibles
+    LaunchedEffect(movies.isNotEmpty() || series.isNotEmpty()) {
+        if (movies.isNotEmpty() || series.isNotEmpty()) {
+            viewModel.loadContinueWatching()
+        }
     }
 
     val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
