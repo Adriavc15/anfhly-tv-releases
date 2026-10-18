@@ -589,21 +589,17 @@ fun ContinueWatchingCard(
                 detectTapGestures { onClick() }
             },
         shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.05f),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
         colors = ClickableSurfaceDefaults.colors(
-            containerColor = Color(0xFF1E1E2E),
-            focusedContainerColor = Color(0xFF2E2E42)
+            containerColor = Color.Transparent,
+            focusedContainerColor = Color.Transparent
         )
     ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(animatedPadding)
-                .clip(RoundedCornerShape(10.dp))
-                .then(
-                    if (isFocused) Modifier.border(2.5.dp, Color.White, RoundedCornerShape(10.dp))
-                    else Modifier
-                )
+                .clip(RoundedCornerShape(12.dp))
         ) {
             // Imagen de fondo (backdrop o poster)
             val imageUrl = progress.backdropUrl ?: progress.posterUrl
@@ -619,10 +615,25 @@ fun ContinueWatchingCard(
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize(),
                     loading = {
-                        Box(modifier = Modifier.fillMaxSize().background(Color(0xFF2A2A3A)))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color(0xFF2A2A3A))
+                        )
                     },
                     error = {
-                        Box(modifier = Modifier.fillMaxSize().background(Color(0xFF1F1F2F)))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color(0xFF1A1A2A)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "❌",
+                                fontSize = 24.sp,
+                                color = Color.White.copy(alpha = 0.5f)
+                            )
+                        }
                     }
                 )
             } else {
@@ -632,6 +643,18 @@ fun ContinueWatchingCard(
                         .background(Brush.linearGradient(listOf(Color(0xFF1F1F2F), Color(0xFF11111B))))
                 )
             }
+
+            // Contraste: cards sin foco se oscurecen, la enfocada se ve a brillo completo
+            val overlayAlpha by animateFloatAsState(
+                targetValue = if (isFocused) 0f else 0.45f,
+                animationSpec = tween(200),
+                label = "cardContrast"
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = overlayAlpha))
+            )
 
             // Gradiente oscuro inferior para texto
             Box(

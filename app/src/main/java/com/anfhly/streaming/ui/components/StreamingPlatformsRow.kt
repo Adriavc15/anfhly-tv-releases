@@ -64,42 +64,42 @@ val streamingPlatformsList = listOf(
         name = "Netflix",
         brandColor = Color(0xFFE50914),
         gradientColors = listOf(Color(0xFF140304), Color(0xFF240A0C)),
-        drawableRes = R.drawable.netflix
+        drawableRes = R.drawable.netflix_2x
     ),
     StreamingPlatform(
         id = "disney",
         name = "Disney+",
         brandColor = Color(0xFF113CCF),
         gradientColors = listOf(Color(0xFF040714), Color(0xFF0B1A45)),
-        drawableRes = R.drawable.disney
+        drawableRes = R.drawable.disney_2x
     ),
     StreamingPlatform(
         id = "hbo",
         name = "HBO Max",
         brandColor = Color(0xFF9E00FF),
         gradientColors = listOf(Color(0xFF0F041F), Color(0xFF220A40)),
-        drawableRes = R.drawable.hbo_max
+        drawableRes = R.drawable.max1
     ),
     StreamingPlatform(
         id = "prime",
         name = "Prime Video",
         brandColor = Color(0xFF00A8E1),
         gradientColors = listOf(Color(0xFF021726), Color(0xFF062C47)),
-        drawableRes = R.drawable.prime_video
+        drawableRes = R.drawable.prime_video_2x
     ),
     StreamingPlatform(
         id = "universal",
         name = "Universal+",
         brandColor = Color(0xFF00A3E0),
         gradientColors = listOf(Color(0xFF02162B), Color(0xFF072E54)),
-        drawableRes = R.drawable.universal
+        drawableRes = R.drawable.universal_plus
     ),
     StreamingPlatform(
         id = "appletv",
         name = "Apple TV+",
         brandColor = Color(0xFFE5E5EA),
         gradientColors = listOf(Color(0xFF141416), Color(0xFF28282C)),
-        drawableRes = R.drawable.appletv
+        drawableRes = R.drawable.apple_tv_2x
     ),
     StreamingPlatform(
         id = "crunchyroll",
@@ -113,7 +113,7 @@ val streamingPlatformsList = listOf(
         name = "Paramount+",
         brandColor = Color(0xFF1B4DB1),
         gradientColors = listOf(Color(0xFF0A0E1F), Color(0xFF14244F)),
-        drawableRes = R.drawable.paramount
+        drawableRes = R.drawable.paramount_2x
     )
 )
 
