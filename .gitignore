@@ -25,6 +25,7 @@ google-services.json
 /*.txt
 /*.zip
 /*.ps1
+!publish_release.ps1
 /*.bat
 !gradlew.bat
 /gradle-temp/
