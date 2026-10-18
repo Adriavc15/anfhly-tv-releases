@@ -1506,7 +1506,7 @@ class PlayerActivity : AppCompatActivity() {
             parametersBuilder.setMaxVideoSize(explicitVideoWidth, explicitVideoHeight)
             Log.d(tag, "Updated TrackSelector: explicit size = ${explicitVideoWidth}x${explicitVideoHeight}")
         } else if (preferredQuality != "auto") {
-            val maxVideoSize = when (preferredQuality) {
+            val userMaxSize = when (preferredQuality) {
                 "4k", "2160p" -> Pair(3840, 2160)
                 "2k", "1440p" -> Pair(2560, 1440)
                 "1080p" -> Pair(1920, 1080)
@@ -1515,8 +1515,15 @@ class PlayerActivity : AppCompatActivity() {
                 "360p" -> Pair(640, 360)
                 else -> Pair(1920, 1080)
             }
-            parametersBuilder.setMaxVideoSize(maxVideoSize.first, maxVideoSize.second)
-            Log.d(tag, "Updated TrackSelector parameters: maxVideoSize = ${maxVideoSize.first}x${maxVideoSize.second}")
+            val adaptiveMaxSize = deviceCapabilities.getAdaptiveMaxVideoSize()
+            val effectiveMax = if (adaptiveMaxSize != null) {
+                Pair(
+                    minOf(userMaxSize.first, adaptiveMaxSize.first),
+                    minOf(userMaxSize.second, adaptiveMaxSize.second)
+                )
+            } else userMaxSize
+            parametersBuilder.setMaxVideoSize(effectiveMax.first, effectiveMax.second)
+            Log.d(tag, "Updated TrackSelector parameters: effectiveMaxSize = ${effectiveMax.first}x${effectiveMax.second} (user=$userMaxSize, adaptive=$adaptiveMaxSize)")
         }
         trackSelector.setParameters(parametersBuilder)
     }
@@ -1577,8 +1584,13 @@ class PlayerActivity : AppCompatActivity() {
         }
         val mediaItem = mediaItemBuilder.build()
 
-        val videoSource = if (videoUrl.contains(".m3u8") || videoUrl.contains("HLS") || currentVideoMimeType == androidx.media3.common.MimeTypes.APPLICATION_M3U8) {
-            val isVidMoly = videoUrl.contains("vidmoly")
+        val isHlsStream = videoUrl.contains(".m3u8", ignoreCase = true) ||
+                          videoUrl.contains("hls", ignoreCase = true) ||
+                          videoUrl.contains("ondemandhls", ignoreCase = true) ||
+                          currentVideoMimeType == androidx.media3.common.MimeTypes.APPLICATION_M3U8
+
+        val videoSource = if (isHlsStream) {
+            val isVidMoly = videoUrl.contains("vidmoly", ignoreCase = true)
             
             if (isVidMoly) {
                 val vidmolyDataSourceFactory = DefaultHttpDataSource.Factory()
@@ -1628,7 +1640,7 @@ class PlayerActivity : AppCompatActivity() {
                     parametersBuilder.setMaxVideoSize(explicitVideoWidth, explicitVideoHeight)
                     Log.d(tag, "Applied explicit size in setupExoPlayer: ${explicitVideoWidth}x${explicitVideoHeight}")
                 } else if (preferredQuality != "auto") {
-                    val maxVideoSize = when (preferredQuality) {
+                    val userMaxSize = when (preferredQuality) {
                         "4k", "2160p" -> Pair(3840, 2160)
                         "2k", "1440p" -> Pair(2560, 1440)
                         "1080p" -> Pair(1920, 1080)
@@ -1637,7 +1649,15 @@ class PlayerActivity : AppCompatActivity() {
                         "360p" -> Pair(640, 360)
                         else -> Pair(1920, 1080)
                     }
-                    parametersBuilder.setMaxVideoSize(maxVideoSize.first, maxVideoSize.second)
+                    val adaptiveMaxSize = deviceCapabilities.getAdaptiveMaxVideoSize()
+                    val effectiveMax = if (adaptiveMaxSize != null) {
+                        Pair(
+                            minOf(userMaxSize.first, adaptiveMaxSize.first),
+                            minOf(userMaxSize.second, adaptiveMaxSize.second)
+                        )
+                    } else userMaxSize
+                    parametersBuilder.setMaxVideoSize(effectiveMax.first, effectiveMax.second)
+                    Log.d(tag, "Applied maxVideoSize in setupExoPlayer: ${effectiveMax.first}x${effectiveMax.second} (user=$userMaxSize, adaptive=$adaptiveMaxSize)")
                 }
                 trackSelector.setParameters(parametersBuilder.build())
             }
@@ -3514,11 +3534,38 @@ class PlayerActivity : AppCompatActivity() {
                         val (groupIndex, trackIndex, _) = trackIndices[which]
                         val format = videoGroups[groupIndex].getTrackFormat(trackIndex)
                         val selectedQuality = qualityTracks[which]
+
+                        // Protección adaptativa de hardware/RAM:
+                        // Si el dispositivo no puede decodificar 4K/2K nativo (ej. <= 1.5GB RAM o sin VPU 4K),
+                        // seleccionar la mejor pista alternativa (ej. 1080p) para garantizar reproducción fluida sin congelarse.
+                        val adaptiveMaxSize = deviceCapabilities.getAdaptiveMaxVideoSize()
+                        var effectiveTrackIndex = trackIndex
+                        var effectiveFormat = format
+                        var effectiveQuality = selectedQuality
+
+                        if (adaptiveMaxSize != null && format.height > adaptiveMaxSize.second) {
+                            val altTrack = (0 until videoGroups[groupIndex].length)
+                                .map { idx -> idx to videoGroups[groupIndex].getTrackFormat(idx) }
+                                .filter { (_, fmt) -> fmt.height in 1..adaptiveMaxSize.second }
+                                .maxByOrNull { (_, fmt) -> fmt.height }
+
+                            if (altTrack != null) {
+                                effectiveTrackIndex = altTrack.first
+                                effectiveFormat = altTrack.second
+                                effectiveQuality = "${effectiveFormat.height}p"
+                                Toast.makeText(
+                                    this,
+                                    "Dispositivo optimizado: ajustado a ${effectiveFormat.height}p para evitar lentitud y congelamiento",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                                Log.i(tag, "Calidad $selectedQuality limitada a ${effectiveFormat.height}p por capacidades del dispositivo (techo=${adaptiveMaxSize.second}p)")
+                            }
+                        }
                         
                         skipAutoQualitySelection = true
-                        explicitVideoWidth = format.width
-                        explicitVideoHeight = format.height
-                        explicitVideoBitrate = format.bitrate
+                        explicitVideoWidth = effectiveFormat.width
+                        explicitVideoHeight = effectiveFormat.height
+                        explicitVideoBitrate = effectiveFormat.bitrate
                         
                         dialog.dismiss()
                         
@@ -3532,23 +3579,23 @@ class PlayerActivity : AppCompatActivity() {
                         val isVidhide = currentVideoUrl.contains("vidhide") || currentVideoUrl.contains("streamwish")
                         if (!isVidhide) {
                             try {
-                                val trackOverride = TrackSelectionOverride(videoGroups[groupIndex].mediaTrackGroup, listOf(trackIndex))
+                                val trackOverride = TrackSelectionOverride(videoGroups[groupIndex].mediaTrackGroup, listOf(effectiveTrackIndex))
                                 val updatedParams = player.trackSelectionParameters.buildUpon()
                                     .clearOverridesOfType(C.TRACK_TYPE_VIDEO)
                                     .clearVideoSizeConstraints()
                                     .setOverrideForType(trackOverride)
                                     .build()
                                 player.trackSelectionParameters = updatedParams
-                                Toast.makeText(this, "Calidad: $selectedQuality", Toast.LENGTH_SHORT).show()
-                                Log.d(tag, "Calidad cambiada dinámicamente con TrackSelectionOverride: $selectedQuality (${format.width}x${format.height})")
+                                Toast.makeText(this, "Calidad: $effectiveQuality", Toast.LENGTH_SHORT).show()
+                                Log.d(tag, "Calidad cambiada dinámicamente con TrackSelectionOverride: $effectiveQuality (${effectiveFormat.width}x${effectiveFormat.height})")
                                 return@setSingleChoiceItems
                             } catch (e: Exception) {
                                 Log.w(tag, "Fallo al aplicar cambio dinámico de calidad, recargando: ${e.message}")
                             }
                         }
                         
-                        Toast.makeText(this, "Cargando: $selectedQuality", Toast.LENGTH_SHORT).show()
-                        Log.d(tag, "Calidad seleccionada para recarga: $selectedQuality (${format.width}x${format.height})")
+                        Toast.makeText(this, "Cargando: $effectiveQuality", Toast.LENGTH_SHORT).show()
+                        Log.d(tag, "Calidad seleccionada para recarga: $effectiveQuality (${effectiveFormat.width}x${effectiveFormat.height})")
                         
                         val currentPosition = player.currentPosition
                         changeQualityManual(currentVideoUrl, currentPosition)
@@ -3571,17 +3618,59 @@ class PlayerActivity : AppCompatActivity() {
             selectedIndex = manualQualities.indexOfFirst { it.url == currentVideoUrl }
                 .takeIf { it >= 0 } ?: manualQualities.indexOfFirst { it.selected }
         ) { which ->
-            val selectedQuality = manualQualities[which]
+            var targetQuality = manualQualities[which]
+            val adaptiveMaxSize = deviceCapabilities.getAdaptiveMaxVideoSize()
 
-            if (selectedQuality.url == currentVideoUrl) {
+            // Protección adaptativa de hardware/RAM para calidades manuales (MP4)
+            if (adaptiveMaxSize != null) {
+                val chosenHeight = when (targetQuality.label.lowercase()) {
+                    "4k", "2160p" -> 2160
+                    "2k", "1440p" -> 1440
+                    "1080p" -> 1080
+                    "720p" -> 720
+                    "480p" -> 480
+                    "360p" -> 360
+                    else -> 0
+                }
+                if (chosenHeight > adaptiveMaxSize.second) {
+                    val altQuality = manualQualities.filter { q ->
+                        val h = when (q.label.lowercase()) {
+                            "1080p" -> 1080
+                            "720p" -> 720
+                            "480p" -> 480
+                            "360p" -> 360
+                            else -> 0
+                        }
+                        h in 1..adaptiveMaxSize.second
+                    }.maxByOrNull { q ->
+                        when (q.label.lowercase()) {
+                            "1080p" -> 1080
+                            "720p" -> 720
+                            "480p" -> 480
+                            "360p" -> 360
+                            else -> 0
+                        }
+                    }
+                    if (altQuality != null) {
+                        targetQuality = altQuality
+                        Toast.makeText(
+                            this,
+                            "Dispositivo optimizado: reproduciendo a ${targetQuality.label} para evitar lentitud y congelamiento",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
+            }
+
+            if (targetQuality.url == currentVideoUrl) {
                 return@showTVSelectionDialog
             }
 
             val currentPosition = exoPlayer?.currentPosition ?: 0
-            changeQualityManual(selectedQuality.url, currentPosition)
+            changeQualityManual(targetQuality.url, currentPosition)
 
-            manualQualities = manualQualities.mapIndexed { index, q ->
-                q.copy(selected = index == which)
+            manualQualities = manualQualities.map { q ->
+                q.copy(selected = q.url == targetQuality.url)
             }
             
             // Restablecer zoom y forzar el modo de ajuste para evitar redimensionamientos extraños
@@ -3591,8 +3680,8 @@ class PlayerActivity : AppCompatActivity() {
             }
             playerView?.resizeMode = currentResizeMode
 
-            Toast.makeText(this, "Calidad: ${selectedQuality.label}", Toast.LENGTH_SHORT).show()
-            Log.d(tag, "Calidad manual seleccionada: ${selectedQuality.label}")
+            Toast.makeText(this, "Calidad: ${targetQuality.label}", Toast.LENGTH_SHORT).show()
+            Log.d(tag, "Calidad manual seleccionada: ${targetQuality.label}")
         }
     }
     

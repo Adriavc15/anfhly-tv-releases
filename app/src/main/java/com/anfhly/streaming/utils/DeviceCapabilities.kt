@@ -376,24 +376,25 @@ class DeviceCapabilities(private val context: Context) {
     fun createOptimizedLoadControl(): DefaultLoadControl {
         return when (getPlaybackTier()) {
             PlaybackTier.CRITICAL -> DefaultLoadControl.Builder()
-                // Buffer mínimo: reduce footprint de memoria al máximo
-                .setBufferDurationsMs(3000, 10000, 1000, 2000)
-                .setTargetBufferBytes(8 * 1024 * 1024)  // 8 MB
-                .setPrioritizeTimeOverSizeThresholds(true)
-                .build()
-            PlaybackTier.LOW -> DefaultLoadControl.Builder()
-                .setBufferDurationsMs(5000, 20000, 1500, 2500)
+                // Buffer mínimo: reduce footprint de memoria al máximo pero evita congelamiento inmediato
+                .setBufferDurationsMs(3000, 15000, 1000, 2000)
                 .setTargetBufferBytes(16 * 1024 * 1024) // 16 MB
                 .setPrioritizeTimeOverSizeThresholds(true)
                 .build()
-            PlaybackTier.MEDIUM -> DefaultLoadControl.Builder()
-                .setBufferDurationsMs(8000, 30000, 1500, 3000)
+            PlaybackTier.LOW -> DefaultLoadControl.Builder()
+                // 32 MB permite almacenar suficiente buffer para 1080p/2K sin que la reproducción se congele
+                .setBufferDurationsMs(4000, 25000, 1500, 2500)
                 .setTargetBufferBytes(32 * 1024 * 1024) // 32 MB
                 .setPrioritizeTimeOverSizeThresholds(true)
                 .build()
-            PlaybackTier.HIGH -> DefaultLoadControl.Builder()
-                .setBufferDurationsMs(15000, 60000, 2500, 5000)
+            PlaybackTier.MEDIUM -> DefaultLoadControl.Builder()
+                .setBufferDurationsMs(6000, 35000, 2000, 3000)
                 .setTargetBufferBytes(64 * 1024 * 1024) // 64 MB
+                .setPrioritizeTimeOverSizeThresholds(true)
+                .build()
+            PlaybackTier.HIGH -> DefaultLoadControl.Builder()
+                .setBufferDurationsMs(10000, 60000, 2500, 5000)
+                .setTargetBufferBytes(128 * 1024 * 1024) // 128 MB
                 .setPrioritizeTimeOverSizeThresholds(true)
                 .build()
         }

@@ -118,7 +118,10 @@ class OkruExtractor : Extractor() {
 
         // Determinar MIME type de la URL por defecto
         val mimeType = when {
-            default.second.contains(".m3u8") -> MimeTypes.APPLICATION_M3U8
+            default.first == "Auto" ||
+            default.second.contains(".m3u8", ignoreCase = true) ||
+            default.second.contains("hls", ignoreCase = true) ||
+            default.second.contains("ondemandhls", ignoreCase = true) -> MimeTypes.APPLICATION_M3U8
             else -> MimeTypes.VIDEO_MP4
         }
 
@@ -129,10 +132,9 @@ class OkruExtractor : Extractor() {
             source = default.second,
             subtitles = subtitles,
             headers = mapOf(
-                "Referer"         to "https://ok.ru",
-                "User-Agent"      to userAgent,
-                "Origin"          to mainUrl,
-                "X-Requested-With" to "XMLHttpRequest"
+                "Referer"    to "https://ok.ru/",
+                "User-Agent" to userAgent,
+                "Origin"     to "https://ok.ru"
             ),
             type = mimeType,
             extraBuffering = mimeType == MimeTypes.APPLICATION_M3U8,

@@ -1,7 +1,7 @@
 {
-  "versionCode": 6,
-  "versionName": "1.0.5",
+  "versionCode": 7,
+  "versionName": "1.0.6",
   "buildDate": "2026-10-18",
   "apkUrl": "https://github.com/Adriavc15/anfhly-tv-releases/releases/latest/download/Anfhly.Tv.apk",
-  "changelog": "- Refactorización y optimización completa del extractor de Ok.ru\n- Eliminación de código no utilizado y métodos de carga obsoletos\n- Parseo robusto con JSONObject nativo para streams y subtítulos\n- Mayor estabilidad en la reproducción de enlaces Ok.ru"
+  "changelog": "- Corrección de lentitud y congelamiento en Ok.ru en todas las resoluciones\n- Detección precisa de HLS nativo (HlsMediaSource) para enlaces ondemandHls\n- Eliminación de throttling de CDN al limpiar cabeceras de streaming\n- Aumento de tamaño de buffers de reproducción para evitar rebuffering continuo\n- Protección de hardware activa al seleccionar calidades manuales en el reproductor"
 }
