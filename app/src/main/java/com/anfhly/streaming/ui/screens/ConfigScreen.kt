@@ -64,24 +64,11 @@ fun ConfigScreen(
             ),
         contentAlignment = Alignment.Center
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
             modifier = Modifier.fillMaxSize()
         ) {
-            Text(
-                text = "Ajustes",
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Normal,
-                color = Color(0xFF444444),
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = 50.dp)
-            )
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center,
-                modifier = Modifier.weight(1f)
-            ) {
                 Box(
                     modifier = Modifier
                         .size(240.dp)
@@ -371,7 +358,6 @@ fun ConfigScreen(
                         }
                     }
                 }
-            }
         }
     }
 

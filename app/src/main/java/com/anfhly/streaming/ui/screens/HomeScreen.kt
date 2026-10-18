@@ -252,7 +252,8 @@ fun GamingContentCard(
     useBackdrop: Boolean = false,
     isChannel: Boolean = false,
     isCategoryCard: Boolean = false,
-    isTrending: Boolean = false
+    isTrending: Boolean = false,
+    cardFocusRequester: FocusRequester? = null
 ) {
     // Animación de entrada escalonada - ultra optimizada
     val animatedVisibility = remember { mutableStateOf(false) }
@@ -269,7 +270,8 @@ fun GamingContentCard(
 
     // Card con efecto glow blanco al enfocar
     var isFocused by remember { mutableStateOf(false) }
-    val focusRequester = remember { FocusRequester() }
+    val defaultFocusRequester = remember { FocusRequester() }
+    val focusRequester = cardFocusRequester ?: defaultFocusRequester
     // Quest 3 hover-to-focus support
     val interactionSource = remember { MutableInteractionSource() }
     val isHovered by interactionSource.collectIsHoveredAsState()
@@ -459,7 +461,8 @@ fun ContentRowGamingStyle(
     cardSpacing: androidx.compose.ui.unit.Dp = if (useBackdrop) 24.dp else 32.dp,
     isChannel: Boolean = false,
     isCategoryCard: Boolean = false,
-    isTrending: Boolean = false
+    isTrending: Boolean = false,
+    firstCardFocusRequester: FocusRequester? = null
 ) {
     val listState = rememberTvLazyListState()
 
@@ -532,7 +535,8 @@ fun ContentRowGamingStyle(
                     useBackdrop = useBackdrop,
                     isChannel = isChannel,
                     isCategoryCard = isCategoryCard,
-                    isTrending = isTrending
+                    isTrending = isTrending,
+                    cardFocusRequester = if (index == 0) firstCardFocusRequester else null
                 )
             }
         }
@@ -711,6 +715,16 @@ fun GamingStyleHeader(
         label = "headerSlide"
     )
 
+    val profileFocusRequester = remember { FocusRequester() }
+    val searchFocusRequester = remember { FocusRequester() }
+    val tabFocusRequesters = remember { List(tabs.size) { FocusRequester() } }
+
+    val enabledTabIndices = remember(tabEnabled) {
+        (1 until tabs.size - 1).filter { tabEnabled[it] != false }
+    }
+    val firstEnabledTabIndex = enabledTabIndices.firstOrNull() ?: 1
+    val lastEnabledTabIndex = enabledTabIndices.lastOrNull() ?: (tabs.size - 2)
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -722,7 +736,6 @@ fun GamingStyleHeader(
             .onFocusChanged { focusState ->
                 onFocusChanged(focusState.hasFocus)
             }
-            .focusable()
     ) {
         // Box container to allow left-aligned profile and centered main tabs capsule
         Box(
@@ -759,7 +772,7 @@ fun GamingStyleHeader(
                     scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
                     shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(20.dp)),
                     modifier = Modifier
-                        .focusRequester(headerFocusRequester)
+                        .focusRequester(if (isSidebarOnly || activeTab == 0) headerFocusRequester else profileFocusRequester)
                         .onFocusChanged { state ->
                             isProfileFocused = state.isFocused
                         }
@@ -778,6 +791,19 @@ fun GamingStyleHeader(
                                     androidx.compose.ui.input.key.Key.DirectionLeft -> {
                                         onOpenSidebar()
                                         true
+                                    }
+                                    androidx.compose.ui.input.key.Key.DirectionRight -> {
+                                        if (!isSidebarOnly && enabledTabIndices.isNotEmpty()) {
+                                            val targetTab = if (activeTab in enabledTabIndices) activeTab else firstEnabledTabIndex
+                                            try {
+                                                tabFocusRequesters[targetTab].requestFocus()
+                                                true
+                                            } catch (_: Exception) {
+                                                false
+                                            }
+                                        } else {
+                                            false
+                                        }
                                     }
                                     else -> false
                                 }
@@ -853,13 +879,13 @@ fun GamingStyleHeader(
                         val (iconRes, label) = tab
                         val isSelected = activeTab == index
                         var isTabFocused by remember { mutableStateOf(false) }
+                        val effectiveTabRequester = if (activeTab == index) headerFocusRequester else tabFocusRequesters[index]
                         // Quest 3 hover support for tabs
-                        val tabFocusRequester = remember { FocusRequester() }
                         val tabInteraction = remember { MutableInteractionSource() }
                         val isTabHovered by tabInteraction.collectIsHoveredAsState()
                         LaunchedEffect(isTabHovered) {
                             if (isTabHovered) {
-                                try { tabFocusRequester.requestFocus() } catch (_: Exception) {}
+                                try { effectiveTabRequester.requestFocus() } catch (_: Exception) {}
                             }
                         }
 
@@ -884,7 +910,7 @@ fun GamingStyleHeader(
                             scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
                             shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(20.dp)),
                             modifier = Modifier
-                                .focusRequester(tabFocusRequester)
+                                .focusRequester(effectiveTabRequester)
                                 .hoverable(tabInteraction)
                                 .onFocusChanged { state ->
                                     isTabFocused = state.isFocused
@@ -900,6 +926,50 @@ fun GamingStyleHeader(
                                             androidx.compose.ui.input.key.Key.DirectionDown -> {
                                                 onNavigateDown()
                                                 true
+                                            }
+                                            androidx.compose.ui.input.key.Key.DirectionLeft -> {
+                                                if (index == firstEnabledTabIndex) {
+                                                    try {
+                                                        profileFocusRequester.requestFocus()
+                                                        true
+                                                    } catch (_: Exception) {
+                                                        false
+                                                    }
+                                                } else {
+                                                    val prevIndex = enabledTabIndices.filter { it < index }.lastOrNull()
+                                                    if (prevIndex != null) {
+                                                        try {
+                                                            tabFocusRequesters[prevIndex].requestFocus()
+                                                            true
+                                                        } catch (_: Exception) {
+                                                            false
+                                                        }
+                                                    } else {
+                                                        false
+                                                    }
+                                                }
+                                            }
+                                            androidx.compose.ui.input.key.Key.DirectionRight -> {
+                                                if (index == lastEnabledTabIndex) {
+                                                    try {
+                                                        searchFocusRequester.requestFocus()
+                                                        true
+                                                    } catch (_: Exception) {
+                                                        false
+                                                    }
+                                                } else {
+                                                    val nextIndex = enabledTabIndices.filter { it > index }.firstOrNull()
+                                                    if (nextIndex != null) {
+                                                        try {
+                                                            tabFocusRequesters[nextIndex].requestFocus()
+                                                            true
+                                                        } catch (_: Exception) {
+                                                            false
+                                                        }
+                                                    } else {
+                                                        false
+                                                    }
+                                                }
                                             }
                                             else -> false
                                         }
@@ -954,6 +1024,7 @@ fun GamingStyleHeader(
             if (!isSidebarOnly) {
             val searchIndex = tabs.size - 1
             val isSearchSelected = activeTab == searchIndex
+            val effectiveSearchRequester = if (isSearchSelected) headerFocusRequester else searchFocusRequester
             var isSearchFocused by remember { mutableStateOf(false) }
 
             val searchTextColor by animateColorAsState(
@@ -983,6 +1054,7 @@ fun GamingStyleHeader(
                     scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
                     shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(20.dp)),
                     modifier = Modifier
+                        .focusRequester(effectiveSearchRequester)
                         .onFocusChanged { state ->
                             isSearchFocused = state.isFocused
                         }
@@ -997,6 +1069,23 @@ fun GamingStyleHeader(
                                     androidx.compose.ui.input.key.Key.DirectionDown -> {
                                         onNavigateDown()
                                         true
+                                    }
+                                    androidx.compose.ui.input.key.Key.DirectionLeft -> {
+                                        if (enabledTabIndices.isNotEmpty()) {
+                                            try {
+                                                tabFocusRequesters[lastEnabledTabIndex].requestFocus()
+                                                true
+                                            } catch (_: Exception) {
+                                                false
+                                            }
+                                        } else {
+                                            try {
+                                                profileFocusRequester.requestFocus()
+                                                true
+                                            } catch (_: Exception) {
+                                                false
+                                            }
+                                        }
                                     }
                                     else -> false
                                 }
@@ -2213,14 +2302,13 @@ fun HomeScreen(
                         scope.launch {
                             try {
                                 listState.scrollToItem(streamingListIndex)
-                                delay(50)
-                                streamingFocusRequester.requestFocus()
-                            } catch (_: Exception) {
+                            } catch (_: Exception) {}
+                            for (d in listOf(30L, 80L, 150L)) {
+                                delay(d)
                                 try {
-                                    firstCardFocusRequester.requestFocus()
-                                } catch (_: Exception) {
-                                    // ignore
-                                }
+                                    streamingFocusRequester.requestFocus()
+                                    break
+                                } catch (_: Exception) {}
                             }
                         }
                     }
@@ -2232,10 +2320,13 @@ fun HomeScreen(
                         scope.launch {
                             try {
                                 listState.scrollToItem(firstCardsListIndex)
-                                delay(50)
-                                firstCardFocusRequester.requestFocus()
-                            } catch (_: Exception) {
-                                // ignore
+                            } catch (_: Exception) {}
+                            for (d in listOf(30L, 80L, 150L)) {
+                                delay(d)
+                                try {
+                                    firstCardFocusRequester.requestFocus()
+                                    break
+                                } catch (_: Exception) {}
                             }
                         }
                     }
@@ -2245,20 +2336,31 @@ fun HomeScreen(
                             focusStreamingPlatforms()
                         } else if (showHero) {
                             heroHasFocus = true
-                            try {
-                                heroFocusRequester.requestFocus()
-                            } catch (e: Exception) {
+                            scope.launch {
                                 try {
-                                    headerFocusRequester.requestFocus()
-                                } catch (ex: Exception) {
-                                    // ignore
+                                    listState.scrollToItem(0)
+                                } catch (_: Exception) {}
+                                for (d in listOf(30L, 80L, 150L)) {
+                                    delay(d)
+                                    try {
+                                        heroFocusRequester.requestFocus()
+                                        break
+                                    } catch (_: Exception) {}
                                 }
                             }
                         } else {
-                            try {
-                                headerFocusRequester.requestFocus()
-                            } catch (e: Exception) {
-                                // ignore
+                            headerHasFocus = true
+                            scope.launch {
+                                try {
+                                    listState.scrollToItem(0)
+                                } catch (_: Exception) {}
+                                for (d in listOf(30L, 80L, 150L)) {
+                                    delay(d)
+                                    try {
+                                        headerFocusRequester.requestFocus()
+                                        break
+                                    } catch (_: Exception) {}
+                                }
                             }
                         }
                     }
@@ -2274,8 +2376,36 @@ fun HomeScreen(
                         }
                     }
                     
-                    // BackHandler eliminado para permitir que el Activity maneje el retroceso directamente
-                    // El doble retroceso y cierre de app se maneja a nivel de Activity
+                    // Manejo de botón Atrás en control remoto:
+                    // 1. Cerrar sidebar si está abierto
+                    // 2. Si está en el contenido (hero, plataformas o cards), hacer scroll al inicio y enfocar el header
+                    // 3. Si está en otra pestaña y en el header, volver a Home
+                    // 4. Si está en Home y en el header, permitir que el Activity maneje el doble retroceso para salir
+                    BackHandler(enabled = sidebarOpen || !headerHasFocus || activeInterface != InterfaceMode.HOME) {
+                        if (sidebarOpen) {
+                            sidebarOpen = false
+                            headerHasFocus = true
+                            scope.launch {
+                                try { headerFocusRequester.requestFocus() } catch (_: Exception) {}
+                            }
+                        } else if (!headerHasFocus) {
+                            headerHasFocus = true
+                            scope.launch {
+                                try {
+                                    listState.scrollToItem(0)
+                                } catch (_: Exception) {}
+                                for (d in listOf(30L, 80L, 150L)) {
+                                    delay(d)
+                                    try {
+                                        headerFocusRequester.requestFocus()
+                                        break
+                                    } catch (_: Exception) {}
+                                }
+                            }
+                        } else if (activeInterface != InterfaceMode.HOME) {
+                            viewModel.setActiveInterface(InterfaceMode.HOME)
+                        }
+                    }
                     
                     val headerAlpha by animateFloatAsState(
                         targetValue = if (isNetflixStyle || headerHasFocus) 1f else 0f,
@@ -2398,10 +2528,6 @@ fun HomeScreen(
 
                     // CONTENIDO SCROLLABLE - Cards con scroll para mostrar primera fila
                     // listState is defined in outer scope
-                    val totalCategories = moviesCategories.size + seriesCategories.size
-                    val categoryRowFocusRequesters = remember(totalCategories) { 
-                        List(totalCategories) { FocusRequester() } 
-                    }
                     
                     // showHero is defined in outer scope
                     
@@ -2609,9 +2735,9 @@ fun HomeScreen(
                                         showTitle = true,
                                         useBackdrop = category.title.contains("Tendencia", ignoreCase = true) || category.title.contains("Top 10", ignoreCase = true),
                                         isTrending = category.title.contains("Tendencia", ignoreCase = true) || category.title.contains("Top 10", ignoreCase = true),
+                                        firstCardFocusRequester = if (isFirstRow) firstCardFocusRequester else null,
                                         modifier = Modifier
                                             .alpha(cardsAlpha)
-                                            .then(if (isFirstRow) Modifier.focusRequester(firstCardFocusRequester) else Modifier)
                                             .onFocusChanged {
                                                 if (it.hasFocus) {
                                                     focusedRowIndex = index
@@ -2656,9 +2782,9 @@ fun HomeScreen(
                                                 headerHasFocus = false
                                             },
                                             showTitle = false,
+                                            firstCardFocusRequester = firstCardFocusRequester,
                                             modifier = Modifier
                                                 .alpha(cardsAlpha)
-                                                .focusRequester(firstCardFocusRequester)
                                                 .onFocusChanged {
                                                     if (it.hasFocus) {
                                                         focusedRowIndex = 0
@@ -2699,10 +2825,9 @@ fun HomeScreen(
                                         },
                                         useBackdrop = true,
                                         isCategoryCard = true,
+                                        firstCardFocusRequester = if (isFirstRow) firstCardFocusRequester else null,
                                         modifier = Modifier
                                             .alpha(cardsAlpha)
-                                            .then(if (isFirstRow) Modifier.focusRequester(firstCardFocusRequester) else Modifier)
-                                            .focusRequester(categoryRowFocusRequesters.getOrNull(index) ?: FocusRequester())
                                             .onFocusChanged {
                                                 if (it.hasFocus) {
                                                     focusedRowIndex = index
@@ -2710,47 +2835,11 @@ fun HomeScreen(
                                                 }
                                             }
                                             .onPreviewKeyEvent { event ->
-                                                if (event.type == androidx.compose.ui.input.key.KeyEventType.KeyDown) {
-                                                    when (event.key) {
-                                                        androidx.compose.ui.input.key.Key.DirectionUp -> {
-                                                            if (index == 0) {
-                                                                navigateUpFromFirstRow()
-                                                                true
-                                                            } else {
-                                                                val prevIndex = index - 1
-                                                                focusedRowIndex = prevIndex
-                                                                scope.launch {
-                                                                    try {
-                                                                        listState.scrollToItem(prevIndex)
-                                                                        delay(50)
-                                                                        categoryRowFocusRequesters.getOrNull(prevIndex)?.requestFocus()
-                                                                    } catch (e: Exception) {
-                                                                        // Evitar crash si el FocusRequester no está adjunto
-                                                                    }
-                                                                }
-                                                                true
-                                                            }
-                                                        }
-                                                        androidx.compose.ui.input.key.Key.DirectionDown -> {
-                                                            if (index < totalCategories - 1) {
-                                                                val nextIndex = index + 1
-                                                                focusedRowIndex = nextIndex
-                                                                scope.launch {
-                                                                    try {
-                                                                        listState.scrollToItem(nextIndex)
-                                                                        delay(50)
-                                                                        categoryRowFocusRequesters.getOrNull(nextIndex)?.requestFocus()
-                                                                    } catch (e: Exception) {
-                                                                        // Evitar crash si el FocusRequester no está adjunto
-                                                                    }
-                                                                }
-                                                                true
-                                                            } else {
-                                                                true
-                                                            }
-                                                        }
-                                                        else -> false
-                                                    }
+                                                if (event.type == androidx.compose.ui.input.key.KeyEventType.KeyDown && 
+                                                    event.key == androidx.compose.ui.input.key.Key.DirectionUp && 
+                                                    index == 0) {
+                                                    navigateUpFromFirstRow()
+                                                    true
                                                 } else {
                                                     false
                                                 }
@@ -2777,9 +2866,9 @@ fun HomeScreen(
                                         },
                                         useBackdrop = true,
                                         isCategoryCard = true,
+                                        firstCardFocusRequester = if (adjustedIndex == 0) firstCardFocusRequester else null,
                                         modifier = Modifier
                                             .alpha(cardsAlpha)
-                                            .focusRequester(categoryRowFocusRequesters.getOrNull(adjustedIndex) ?: FocusRequester())
                                             .onFocusChanged {
                                                 if (it.hasFocus) {
                                                     focusedRowIndex = adjustedIndex
@@ -2787,42 +2876,11 @@ fun HomeScreen(
                                                 }
                                             }
                                             .onPreviewKeyEvent { event ->
-                                                if (event.type == androidx.compose.ui.input.key.KeyEventType.KeyDown) {
-                                                    when (event.key) {
-                                                        androidx.compose.ui.input.key.Key.DirectionUp -> {
-                                                            val prevIndex = adjustedIndex - 1
-                                                            focusedRowIndex = prevIndex
-                                                            scope.launch {
-                                                                try {
-                                                                    listState.scrollToItem(prevIndex)
-                                                                    delay(50)
-                                                                    categoryRowFocusRequesters.getOrNull(prevIndex)?.requestFocus()
-                                                                } catch (e: Exception) {
-                                                                    // Evitar crash si el FocusRequester no está adjunto
-                                                                }
-                                                            }
-                                                            true
-                                                        }
-                                                        androidx.compose.ui.input.key.Key.DirectionDown -> {
-                                                            if (adjustedIndex < totalCategories - 1) {
-                                                                val nextIndex = adjustedIndex + 1
-                                                                focusedRowIndex = nextIndex
-                                                                scope.launch {
-                                                                    try {
-                                                                        listState.scrollToItem(nextIndex)
-                                                                        delay(50)
-                                                                        categoryRowFocusRequesters.getOrNull(nextIndex)?.requestFocus()
-                                                                    } catch (e: Exception) {
-                                                                        // Evitar crash si el FocusRequester no está adjunto
-                                                                    }
-                                                                }
-                                                                true
-                                                            } else {
-                                                                true
-                                                            }
-                                                        }
-                                                        else -> false
-                                                    }
+                                                if (event.type == androidx.compose.ui.input.key.KeyEventType.KeyDown && 
+                                                    event.key == androidx.compose.ui.input.key.Key.DirectionUp && 
+                                                    adjustedIndex == 0) {
+                                                    navigateUpFromFirstRow()
+                                                    true
                                                 } else {
                                                     false
                                                 }
@@ -2854,9 +2912,9 @@ fun HomeScreen(
                                                 headerHasFocus = false
                                             },
                                             showTitle = false,
+                                            firstCardFocusRequester = firstCardFocusRequester,
                                             modifier = Modifier
                                                 .alpha(cardsAlpha)
-                                                .focusRequester(firstCardFocusRequester)
                                                 .onFocusChanged {
                                                     if (it.hasFocus) {
                                                         focusedRowIndex = 0
@@ -2973,9 +3031,9 @@ fun HomeScreen(
                                                 headerHasFocus = false
                                             },
                                             showTitle = false,
+                                            firstCardFocusRequester = firstCardFocusRequester,
                                             modifier = Modifier
                                                 .alpha(cardsAlpha)
-                                                .focusRequester(firstCardFocusRequester)
                                                 .onFocusChanged {
                                                     if (it.hasFocus) {
                                                         headerHasFocus = false
@@ -3053,9 +3111,9 @@ fun HomeScreen(
                                             showTitle = true,
                                             useBackdrop = true,
                                              isChannel = true,
+                                            firstCardFocusRequester = if (isFirstRow) firstCardFocusRequester else null,
                                             modifier = Modifier
                                                 .alpha(cardsAlpha)
-                                                .then(if (isFirstRow) Modifier.focusRequester(firstCardFocusRequester) else Modifier)
                                                 .onFocusChanged {
                                                     if (it.hasFocus) {
                                                         focusedRowIndex = index
