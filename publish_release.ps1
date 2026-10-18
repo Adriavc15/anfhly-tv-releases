@@ -62,10 +62,36 @@ $headers = @{
 }
 
 $repoOwner = "Adriavc15"
-$repoName = "ANFHLYTV"
+$repoName = "anfhly-tv-releases"
 
-# 4. Verificar si ya existe un release con esta etiqueta
-Write-Host "-> Verificando release en GitHub..." -ForegroundColor Yellow
+# 4. Sincronizar update.json en el repositorio público
+Write-Host "-> Sincronizando update.json en $repoOwner/$repoName..." -ForegroundColor Yellow
+$updateContent = Get-Content $updateJsonPath -Raw
+$encodedContent = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($updateContent))
+
+foreach ($destPath in @("update.json", "app/update.json")) {
+    $fileUri = "https://api.github.com/repos/$repoOwner/$repoName/contents/$destPath"
+    $sha = $null
+    try {
+        $existing = Invoke-RestMethod -Uri $fileUri -Headers $headers -Method Get
+        $sha = $existing.sha
+    } catch {}
+
+    $commitData = [ordered]@{
+        message = "Update manifest for $tagName"
+        content = $encodedContent
+    }
+    if ($sha) { $commitData["sha"] = $sha }
+    try {
+        Invoke-RestMethod -Uri $fileUri -Headers $headers -Method Put -Body ($commitData | ConvertTo-Json) -ContentType "application/json" | Out-Null
+    } catch {
+        Write-Warning "No se pudo sincronizar $destPath : $($_.Exception.Message)"
+    }
+}
+Write-Host "-> update.json sincronizado correctamente." -ForegroundColor Green
+
+# 5. Verificar si ya existe un release con esta etiqueta
+Write-Host "-> Verificando release en GitHub ($repoOwner/$repoName)..." -ForegroundColor Yellow
 $release = $null
 try {
     $release = Invoke-RestMethod -Uri "https://api.github.com/repos/$repoOwner/$repoName/releases/tags/$tagName" -Headers $headers -Method Get

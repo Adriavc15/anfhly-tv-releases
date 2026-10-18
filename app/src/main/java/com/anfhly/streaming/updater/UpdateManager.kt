@@ -25,11 +25,11 @@ class UpdateManager(private val context: Context) {
     companion object {
         private const val TAG = "UpdateManager"
         private const val GITHUB_OWNER = "Adriavc15"
-        private const val GITHUB_REPO = "ANFHLYTV"
+        private const val GITHUB_REPO = "anfhly-tv-releases"
 
-        // URL directa al manifiesto de actualización en el repositorio GitHub
+        // URL directa al manifiesto de actualización en el repositorio GitHub público
         private const val GITHUB_RAW_MANIFEST_URL =
-            "https://raw.githubusercontent.com/$GITHUB_OWNER/$GITHUB_REPO/main/app/update.json"
+            "https://raw.githubusercontent.com/$GITHUB_OWNER/$GITHUB_REPO/main/update.json"
 
         // URL a la API de GitHub Releases para última versión
         private const val GITHUB_RELEASES_API_URL =
@@ -37,7 +37,7 @@ class UpdateManager(private val context: Context) {
 
         // URL por defecto del APK publicado en GitHub Releases
         private const val DEFAULT_RELEASE_APK_URL =
-            "https://github.com/$GITHUB_OWNER/$GITHUB_REPO/releases/latest/download/Anfhly%20Tv.apk"
+            "https://github.com/$GITHUB_OWNER/$GITHUB_REPO/releases/latest/download/Anfhly.Tv.apk"
     }
 
     data class UpdateInfo(
