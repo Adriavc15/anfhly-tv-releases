@@ -2649,10 +2649,10 @@ fun HomeScreen(
                     val scope = rememberCoroutineScope()
                     val showStreamingPlatforms =
                         activeInterface == InterfaceMode.HOME || activeInterface == InterfaceMode.MOVIES
-                    // Índice en TvLazyColumn: hero (opcional) + plataformas (opcional) + cards
+                    // Índice en TvLazyColumn: hero (opcional) + plataformas (opcional) + continue watching (opcional) + cards
                     val streamingListIndex = if (showHero) 1 else 0
                     val firstCardsListIndex =
-                        (if (showHero) 1 else 0) + (if (showStreamingPlatforms) 1 else 0)
+                        (if (showHero) 1 else 0) + (if (showStreamingPlatforms) 1 else 0) + (if (continueWatching.isNotEmpty()) 1 else 0)
 
                     val focusStreamingPlatforms = {
                         heroHasFocus = false
@@ -2688,9 +2688,30 @@ fun HomeScreen(
                             }
                         }
                     }
-                    
+
+                    val focusContinueWatching = {
+                        heroHasFocus = false
+                        headerHasFocus = false
+                        focusedRowIndex = 0
+                        scope.launch {
+                            try {
+                                val continueWatchingIndex = (if (showHero) 1 else 0) + (if (showStreamingPlatforms) 1 else 0)
+                                listState.scrollToItem(continueWatchingIndex)
+                            } catch (_: Exception) {}
+                            for (d in listOf(30L, 80L, 150L)) {
+                                delay(d)
+                                try {
+                                    firstCardFocusRequester.requestFocus()
+                                    break
+                                } catch (_: Exception) {}
+                            }
+                        }
+                    }
+
                     val navigateUpFromFirstRow = {
-                        if (showStreamingPlatforms) {
+                        if (continueWatching.isNotEmpty()) {
+                            focusContinueWatching()
+                        } else if (showStreamingPlatforms) {
                             focusStreamingPlatforms()
                         } else if (showHero) {
                             heroHasFocus = true
@@ -3065,7 +3086,11 @@ fun HomeScreen(
                                         }
                                     },
                                     onNavigateDown = {
-                                        focusFirstCards()
+                                        if (continueWatching.isNotEmpty()) {
+                                            focusContinueWatching()
+                                        } else {
+                                            focusFirstCards()
+                                        }
                                     }
                                 )
                             }
@@ -3096,7 +3121,30 @@ fun HomeScreen(
                                             },
                                             firstCardFocusRequester = firstCardFocusRequester,
                                             onNavigateUp = {
-                                                navigateUpFromFirstRow()
+                                                if (showStreamingPlatforms) {
+                                                    focusStreamingPlatforms()
+                                                } else if (showHero) {
+                                                    heroHasFocus = true
+                                                    scope.launch {
+                                                        try {
+                                                            listState.scrollToItem(0)
+                                                        } catch (_: Exception) {}
+                                                        for (d in listOf(30L, 80L, 150L)) {
+                                                            delay(d)
+                                                            try {
+                                                                heroFocusRequester.requestFocus()
+                                                                break
+                                                            } catch (_: Exception) {}
+                                                        }
+                                                    }
+                                                } else {
+                                                    headerHasFocus = true
+                                                    scope.launch {
+                                                        try {
+                                                            headerFocusRequester.requestFocus()
+                                                        } catch (_: Exception) {}
+                                                    }
+                                                }
                                             },
                                             modifier = Modifier
                                                 .alpha(cardsAlpha)
