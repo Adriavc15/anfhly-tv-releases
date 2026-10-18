@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Selected state - Material Design: purple circle (#6200EE) with white inner dot -->
+    <item android:state_checked="true">
+        <layer-list>
+            <!-- Outer ring: Purple (Primary color) -->
+            <item>
+                <shape android:shape="oval">
+                    <solid android:color="#6200EE" />
+                    <size android:width="20dp" android:height="20dp" />
+                </shape>
+            </item>
+            <!-- Inner dot: White -->
+            <item android:left="5dp" android:top="5dp" android:right="5dp" android:bottom="5dp">
+                <shape android:shape="oval">
+                    <solid android:color="#FFFFFF" />
+                </shape>
+            </item>
+        </layer-list>
+    </item>
+
+    <!-- Unselected state - Material Design: gray outline only -->
+    <item>
+        <shape android:shape="oval">
+            <stroke android:width="2dp" android:color="#757575" />
+            <size android:width="20dp" android:height="20dp" />
+        </shape>
+    </item>
+</selector>

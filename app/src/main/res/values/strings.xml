@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">AnfhlyTv +</string>
+    
+    <!-- Login -->
+    <string name="welcome_title">Bienvenido a ANFHLY</string>
+    <string name="welcome_subtitle">Tu plataforma de streaming con miles de películas y series para disfrutar</string>
+    <string name="continue_button">Continuar</string>
+    <string name="login_title">INICIAR SESIÓN</string>
+    <string name="login_subtitle">Get ready to watch thousands of TV shows and movies.</string>
+    <string name="email_hint">Email address</string>
+    <string name="password_hint">Password (4-60 characters)</string>
+    <string name="remember_email">Remember Email</string>
+    <string name="forgot_password">Forgot Password?</string>
+    <string name="register_button">Registrar</string>
+    <string name="login_button">Iniciar Sesión</string>
+    <string name="navigate_instructions">Usa las flechas para navegar, ENTER para seleccionar, ESC para retroceder</string>
+    
+    <!-- Errors -->
+    <string name="error_user_not_found">No existe una cuenta con este email</string>
+    <string name="error_wrong_password">Contraseña incorrecta</string>
+    <string name="error_invalid_email">Email inválido</string>
+    <string name="error_too_many_requests">Demasiados intentos. Intenta más tarde</string>
+    <string name="error_invalid_credentials">Credenciales inválidas. Verifica tu email y contraseña</string>
+    <string name="error_login">Error al iniciar sesión</string>
+    
+    <!-- Profiles -->
+    <string name="profiles_title">¿Quién está viendo?</string>
+    <string name="manage_profiles">Gestionar perfiles</string>
+    <string name="add_profile">Agregar perfil</string>
+    <string name="edit_profile">Editar perfil</string>
+    <string name="delete_profile">Eliminar perfil</string>
+    <string name="profile_locked">Perfil bloqueado</string>
+    <string name="enter_pin">Ingresa el PIN</string>
+    <string name="kids_profile">Perfil para niños</string>
+    <string name="adult_profile">Perfil adulto</string>
+    <string name="max_profiles">Has alcanzado el límite máximo de 5 perfiles</string>
+    <string name="loading_profiles">Cargando perfiles...</string>
+    
+    <!-- Main Menu -->
+    <string name="menu_home">Inicio</string>
+    <string name="menu_movies">Películas</string>
+    <string name="menu_series">Series</string>
+    <string name="menu_search">Buscar</string>
+    <string name="menu_profile">Perfil</string>
+    <string name="menu_settings">Configuración</string>
+    <string name="menu_my_list">Mi Lista</string>
+    
+    <!-- Content -->
+    <string name="play">Reproducir</string>
+    <string name="more_info">Más información</string>
+    <string name="add_to_list">Agregar a mi lista</string>
+    <string name="remove_from_list">Quitar de mi lista</string>
+    <string name="seasons">Temporadas</string>
+    <string name="episodes">Episodios</string>
+    <string name="related_content">Contenido relacionado</string>
+    <string name="new_release">Nuevo</string>
+    <string name="trending">Tendencia</string>
+    
+    <!-- Search -->
+    <string name="search_title">Buscar</string>
+    <string name="search_hint">Buscar películas, series…</string>
+    <string name="search_results">Resultados</string>
+    <string name="no_results">No se encontraron resultados</string>
+    <string name="recent_searches">Búsquedas recientes</string>
+    
+    <!-- Settings -->
+    <string name="settings_title">Configuración</string>
+    <string name="audio">Audio</string>
+    <string name="subtitles">Subtítulos</string>
+    <string name="video">Video</string>
+    <string name="general">General</string>
+    <string name="privacy">Privacidad</string>
+    <string name="account">Cuenta</string>
+    <string name="language">Idioma</string>
+    <string name="quality">Calidad</string>
+    <string name="autoplay">Reproducción automática</string>
+    <string name="notifications">Notificaciones</string>
+    <string name="parental_control">Control parental</string>
+    <string name="logout">Cerrar sesión</string>
+    <string name="delete_account">Eliminar cuenta</string>
+    <string name="saved">Guardado</string>
+    <string name="reset_defaults">Restablecer</string>
+    
+    <!-- Languages -->
+    <string name="lang_spanish">Español</string>
+    <string name="lang_english">English</string>
+    <string name="lang_french">Français</string>
+    <string name="lang_portuguese">Português</string>
+    
+    <!-- Video Qualities -->
+    <string name="quality_auto">Automática (Recomendado)</string>
+    <string name="quality_4k">4K Ultra HD (2160p)</string>
+    <string name="quality_1080">Full HD (1080p)</string>
+    <string name="quality_720">HD (720p)</string>
+    <string name="quality_480">SD (480p)</string>
+    <string name="quality_360">Baja (360p)</string>
+    
+    <!-- Player -->
+    <string name="pause">Pausa</string>
+    <string name="resume">Continuar</string>
+    <string name="next_episode">Siguiente episodio</string>
+    <string name="previous_episode">Episodio anterior</string>
+    <string name="season">Temporada</string>
+    <string name="episode">Episodio</string>
+    
+    <!-- Misc -->
+    <string name="loading">Cargando…</string>
+    <string name="error">Error</string>
+    <string name="retry">Reintentar</string>
+    <string name="cancel">Cancelar</string>
+    <string name="confirm">Confirmar</string>
+    <string name="back">Volver</string>
+    <string name="close">Cerrar</string>
+    
+    <!-- Google Sign-In -->
+    <string name="default_web_client_id">543423020824-9slle0h5mlejbcic7objoncm3nnuiv81.apps.googleusercontent.com</string>
+    
+</resources>

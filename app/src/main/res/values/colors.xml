@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ANFHLY Brand Colors -->
+    <color name="primary">#E50914</color>
+    <color name="primary_dark">#B20710</color>
+    <color name="accent">#FFFFFF</color>
+    
+    <!-- Background Colors -->
+    <color name="background_dark">#0F0F0F</color>
+    <color name="background_card">#1A1A1A</color>
+    <color name="background_elevated">#242424</color>
+    
+    <!-- Text Colors -->
+    <color name="text_primary">#FFFFFF</color>
+    <color name="text_secondary">#B3B3B3</color>
+    <color name="text_disabled">#666666</color>
+    
+    <!-- UI Colors -->
+    <color name="focused">#FFFFFF</color>
+    <color name="selected">#E50914</color>
+    <color name="unfocused">#808080</color>
+    <color name="border_focused">#FFFFFF</color>
+    <color name="border_unfocused">#404040</color>
+    
+    <!-- Semantic Colors -->
+    <color name="success">#46D369</color>
+    <color name="warning">#F5A623</color>
+    <color name="error">#E50914</color>
+    <color name="info">#448AFF</color>
+    
+    <!-- Gradient Colors -->
+    <color name="gradient_start">#0F0F0F</color>
+    <color name="gradient_end">#1A1A1A</color>
+    <color name="overlay_dark">#CC000000</color>
+    <color name="overlay_light">#66000000</color>
+</resources>
