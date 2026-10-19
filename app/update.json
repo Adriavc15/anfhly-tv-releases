@@ -1,7 +1,7 @@
 {
-  "versionCode": 14,
-  "versionName": "1.1.3",
+  "versionCode": 16,
+  "versionName": "1.1.5",
   "buildDate": "2026-10-18",
   "apkUrl": "https://github.com/Adriavc15/anfhly-tv-releases/releases/latest/download/Anfhly.Tv.apk",
-  "changelog": "- Correccion de reproduccion lenta en OK.ru en todas las calidades\n- Eliminados limites artificiales de bitrate (2.5 Mbps) y resolucion (720p) para OK.ru\n- Timeouts de conexion optimizados (15s conexion, 30s lectura) para carga mas rapida\n- Desactivado buffering extra que causaba congelamientos\n- Eliminadas conversiones de codec para OK.ru (soluciona frame por frame y perdida de colores)\n- Calidades manuales de OK.ru ahora funcionan sin restricciones\n- Gama de colores completa preservada en videos de OK.ru"
+  "changelog": "- Fix error de conexion con el servidor en OK.ru (HTTP 400 por URL con doble barra)\n- OK.ru ahora reproduce los MP4 directos en lugar de playlists HLS invalidas\n- Fix decodificacion de respuestas comprimidas (brotli) del servidor de OK.ru\n- Tipo MIME correcto por calidad de OK.ru (MP4 vs HLS) al cambiar de calidad\n- Mejoras visuales en la fila de plataformas (foco y animaciones)"
 }
