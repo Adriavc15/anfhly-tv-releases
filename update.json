@@ -1,7 +1,7 @@
 {
   "versionCode": 19,
   "versionName": "1.1.8",
-  "buildDate": "2026-10-19",
+  "buildDate": "2026-10-18",
   "apkUrl": "https://github.com/Adriavc15/anfhly-tv-releases/releases/latest/download/Anfhly.Tv.apk",
-  "changelog": "- Fix de los videos de VidHide que no cargaban por tiempo de espera agotado\n- Aumento del timeout de conexion en el extractor de VidHide para servidores lentos"
+  "changelog": "- Agregado extractor ByseSukior (bysesukior.com y mirrors) con descifrado AES-GCM del playback\n- Registro del extractor en Extractor.kt para detección automática de enlaces Byse"
 }
