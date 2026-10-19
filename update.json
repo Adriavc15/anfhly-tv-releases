@@ -1,7 +1,7 @@
 {
-  "versionCode": 17,
-  "versionName": "1.1.6",
-  "buildDate": "2026-10-18",
+  "versionCode": 18,
+  "versionName": "1.1.7",
+  "buildDate": "2026-10-19",
   "apkUrl": "https://github.com/Adriavc15/anfhly-tv-releases/releases/latest/download/Anfhly.Tv.apk",
-  "changelog": "- Fix del rebote y lentitud al desplazarse por el home (doble scroll eliminado)\n- Navegacion mas rapida y suave entre hero, plataformas y cards\n- Fix error de conexion con el servidor en OK.ru (HTTP 400 por URL con doble barra)"
+  "changelog": "- Nuevo diseño del dialogo de actualizacion (moderno, blanco y negro)\n- Barra de progreso integrada al descargar la actualizacion\n- Fix del rebote y lentitud al desplazarse por el home (doble scroll eliminado)\n- Navegacion mas rapida y suave entre hero, plataformas y cards"
 }
