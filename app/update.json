@@ -1,6 +1,6 @@
 {
-  "versionCode": 19,
-  "versionName": "1.1.8",
+  "versionCode": 20,
+  "versionName": "1.1.9",
   "buildDate": "2026-10-18",
   "apkUrl": "https://github.com/Adriavc15/anfhly-tv-releases/releases/latest/download/Anfhly.Tv.apk",
   "changelog": "- Agregado extractor ByseSukior (bysesukior.com y mirrors) con descifrado AES-GCM del playback\n- Registro del extractor en Extractor.kt para detección automática de enlaces Byse"
