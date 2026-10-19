@@ -1,7 +1,7 @@
 {
-  "versionCode": 18,
-  "versionName": "1.1.7",
+  "versionCode": 19,
+  "versionName": "1.1.8",
   "buildDate": "2026-10-19",
   "apkUrl": "https://github.com/Adriavc15/anfhly-tv-releases/releases/latest/download/Anfhly.Tv.apk",
-  "changelog": "- Nuevo diseño del dialogo de actualizacion (moderno, blanco y negro)\n- Barra de progreso integrada al descargar la actualizacion\n- Fix del rebote y lentitud al desplazarse por el home (doble scroll eliminado)\n- Navegacion mas rapida y suave entre hero, plataformas y cards"
+  "changelog": "- Fix de los videos de VidHide que no cargaban por tiempo de espera agotado\n- Aumento del timeout de conexion en el extractor de VidHide para servidores lentos"
 }
