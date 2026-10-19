@@ -1,7 +1,7 @@
 {
-  "versionCode": 16,
-  "versionName": "1.1.5",
+  "versionCode": 17,
+  "versionName": "1.1.6",
   "buildDate": "2026-10-18",
   "apkUrl": "https://github.com/Adriavc15/anfhly-tv-releases/releases/latest/download/Anfhly.Tv.apk",
-  "changelog": "- Fix error de conexion con el servidor en OK.ru (HTTP 400 por URL con doble barra)\n- OK.ru ahora reproduce los MP4 directos en lugar de playlists HLS invalidas\n- Fix decodificacion de respuestas comprimidas (brotli) del servidor de OK.ru\n- Tipo MIME correcto por calidad de OK.ru (MP4 vs HLS) al cambiar de calidad\n- Mejoras visuales en la fila de plataformas (foco y animaciones)"
+  "changelog": "- Fix del rebote y lentitud al desplazarse por el home (doble scroll eliminado)\n- Navegacion mas rapida y suave entre hero, plataformas y cards\n- Fix error de conexion con el servidor en OK.ru (HTTP 400 por URL con doble barra)"
 }
