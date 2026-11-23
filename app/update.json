@@ -1,7 +1,7 @@
 {
-  "versionCode": 20,
-  "versionName": "1.1.9",
-  "buildDate": "2026-10-18",
+  "versionCode": 22,
+  "versionName": "1.2.1",
+  "buildDate": "2026-11-23",
   "apkUrl": "https://github.com/Adriavc15/anfhly-tv-releases/releases/latest/download/Anfhly.Tv.apk",
-  "changelog": "- Agregado extractor ByseSukior (bysesukior.com y mirrors) con descifrado AES-GCM del playback\n- Registro del extractor en Extractor.kt para detección automática de enlaces Byse"
+  "changelog": "- Reproductor: Migración a SurfaceView para HDR10/Dolby Vision y 60 fps fluidos sin saturación de GPU\n- Optimización 4K: Detección inteligente de hardware para H.264 vs H.265 (HEVC)\n- Buffer: Optimización de memoria en TV (64 MB) y aumento de bitrate a 35 Mbps\n- Home: Navegación ultra fluida con control remoto (reemplazo de SubcomposeAsyncImage por AsyncImage y eliminación de relayouts)\n- Coil: Decodificación RGB_565 para ahorro del 50% de memoria RAM"
 }
